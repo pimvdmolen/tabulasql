@@ -59,12 +59,12 @@
             "@php artisan package:discover --ansi"
         ],
         "post-install-cmd": [
-            "@php artisan native:install --force --quiet ",
+            "@php artisan native:install --force --no-interaction --quiet ",
             "@php artisan native:patch-electron"
         ],
         "post-update-cmd": [
             "@php artisan vendor:publish --tag=laravel-assets --ansi --force",
-            "@php artisan native:install --force --quiet ",
+            "@php artisan native:install --force --no-interaction --quiet ",
             "@php artisan native:patch-electron"
         ],
         "post-root-package-install": [
