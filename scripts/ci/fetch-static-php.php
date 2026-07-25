@@ -8,8 +8,11 @@
  * bin/{os}/{arch}/php-{majorMinor}.zip — the exact layout NativePHP's build
  * tooling (php.js) expects under a custom NATIVEPHP_PHP_BINARY_PATH.
  *
- * Runs on the matching OS in CI (e.g. the Windows job runs this on an
- * actual windows-latest runner), so the downloaded binary can always be
+ * Used for Linux/macOS "bulk" prebuilds in CI. Windows cannot use the
+ * "spc-max" prebuild (it omits sodium); that path goes through
+ * scripts/ci/build-windows-static-php.ps1 instead.
+ *
+ * Runs on the matching OS in CI, so the downloaded binary can always be
  * executed directly here to verify it — no cross-platform guessing.
  *
  * Usage:

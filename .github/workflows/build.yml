@@ -21,32 +21,36 @@ jobs:
       matrix:
         include:
           # nativephp/php-bin's own bundled PHP has no pdo_mysql/sodium (see
-          # scripts/ci/fetch-static-php.php), so every job downloads and
-          # verifies a static-php-cli build with both instead. Its filename
-          # must be "php-{php_version}.zip", so php_version here must match
-          # exactly what Setup PHP installs below.
+          # scripts/ci/fetch-static-php.php). Linux/macOS jobs download a
+          # verified static-php-cli "bulk" build; Windows builds one (spc-max
+          # omits sodium). The zip filename must be "php-{php_version}.zip",
+          # so php_version here must match exactly what Setup PHP installs.
           - os: ubuntu-latest
             target: linux x64
             label: linux-x64
             php_version: '8.4'
             spc_os: linux
             spc_arch: x64
+            spc_mode: download
             spc_url: https://dl.static-php.dev/static-php-cli/bulk/php-8.4.23-cli-linux-x86_64.tar.gz
             spc_archive: tar.gz
+          # Windows "spc-max" prebuilds omit sodium (confirmed in their
+          # README / upstream EXTENSIONS list), so we build a custom CLI
+          # with sodium via static-php-cli instead of downloading one.
           - os: windows-latest
             target: win x64
             label: windows-x64
             php_version: '8.4'
             spc_os: win
             spc_arch: x64
-            spc_url: https://dl.static-php.dev/static-php-cli/windows/spc-max/php-8.4.20-cli-win.zip
-            spc_archive: zip
+            spc_mode: build
           - os: macos-latest
             target: mac arm64
             label: macos-arm64
             php_version: '8.4'
             spc_os: mac
             spc_arch: arm64
+            spc_mode: download
             spc_url: https://dl.static-php.dev/static-php-cli/bulk/php-8.4.23-cli-macos-aarch64.tar.gz
             spc_archive: tar.gz
           - os: macos-latest
@@ -55,6 +59,7 @@ jobs:
             php_version: '8.4'
             spc_os: mac
             spc_arch: x64
+            spc_mode: download
             spc_url: https://dl.static-php.dev/static-php-cli/bulk/php-8.4.23-cli-macos-x86_64.tar.gz
             spc_archive: tar.gz
 
@@ -94,14 +99,12 @@ jobs:
       # (verified against the actual downloaded package — see
       # nativephp-php-bin-custom/README.md), which would silently break both
       # MySQL connections and encrypted connection export/import in any
-      # build that used it. Download+verify a static-php-cli build with both
-      # instead, and point NATIVEPHP_PHP_BINARY_PATH at it. This runs on the
-      # matching OS in this matrix (e.g. the Windows job runs it on an actual
-      # windows-latest runner), so it can always execute the downloaded
-      # binary directly to verify it — see scripts/ci/fetch-static-php.php
-      # for exactly what's checked, and fails the build loudly if anything
-      # required is missing rather than shipping a broken binary quietly.
+      # build that used it. Replace it with a static-php-cli build that has
+      # both, and point NATIVEPHP_PHP_BINARY_PATH at it. Linux/macOS download
+      # a prebuilt "bulk" archive; Windows builds one (spc-max has no sodium).
+      # Either path verifies the binary by executing it on the matching OS.
       - name: Fetch a portable PHP runtime with pdo_mysql + sodium
+        if: matrix.spc_mode == 'download'
         shell: bash
         run: |
           php -d memory_limit=-1 scripts/ci/fetch-static-php.php \
@@ -112,6 +115,30 @@ jobs:
             "${{ matrix.php_version }}" \
             "${{ runner.temp }}/php-bin-custom"
           echo "NATIVEPHP_PHP_BINARY_PATH=${{ runner.temp }}/php-bin-custom/" >> "$GITHUB_ENV"
+
+      # Cache the Windows-built PHP zip so we don't recompile from source on
+      # every push (spc build is several minutes). Key includes the script so
+      # extension-list changes bust the cache automatically.
+      - name: Cache Windows static PHP build
+        if: matrix.spc_mode == 'build'
+        id: win-php-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/php-bin-custom
+          key: win-static-php-${{ matrix.php_version }}-${{ hashFiles('scripts/ci/build-windows-static-php.ps1') }}
+
+      - name: Build a portable PHP runtime with pdo_mysql + sodium (Windows)
+        if: matrix.spc_mode == 'build' && steps.win-php-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          pwsh -File scripts/ci/build-windows-static-php.ps1 `
+            "${{ matrix.php_version }}" `
+            "${{ runner.temp }}/php-bin-custom"
+
+      - name: Point NativePHP at the Windows PHP runtime
+        if: matrix.spc_mode == 'build'
+        shell: bash
+        run: echo "NATIVEPHP_PHP_BINARY_PATH=${{ runner.temp }}/php-bin-custom/" >> "$GITHUB_ENV"
 
       # Drive the release version from the git tag (e.g. refs/tags/v1.2.0 ->
       # 1.2.0) so artifact filenames/app version stay in sync with the

@@ -21,10 +21,11 @@ because `native:build` completes successfully either way.
 
 Two ways this is already handled in this repo, pick whichever fits what
 you're doing:
-- **CI** (`.github/workflows/build.yml`): already downloads and verifies a
-  proper static-php-cli build per platform automatically — see
-  `scripts/ci/fetch-static-php.php`. Nothing to do if you're just running
-  that workflow.
+- **CI** (`.github/workflows/build.yml`): already prepares and verifies a
+  proper static-php-cli build per platform automatically — Linux/macOS via
+  `scripts/ci/fetch-static-php.php`, Windows via
+  `scripts/ci/build-windows-static-php.ps1` (the public "spc-max" Windows
+  prebuild omits sodium). Nothing to do if you're just running that workflow.
 - **Local manual builds**: `nativephp-php-bin-custom/README.md` documents
   the equivalent manual setup (a `NATIVEPHP_PHP_BINARY_PATH` override in
   `.env` pointing at a custom-fetched static PHP build). If you're building
@@ -37,9 +38,10 @@ you're doing:
     tar.gz linux x64 8.4 nativephp-php-bin-custom
   ```
   (swap the URL/args for macOS `.../bulk/php-8.4.23-cli-macos-{aarch64,x86_64}.tar.gz` /
-  `mac` `arm64`/`x64`, or Windows `.../windows/spc-max/php-8.4.20-cli-win.zip` /
-  `win` `x64` — check `dl.static-php.dev/static-php-cli/{bulk,windows/spc-max}/`
-  for current version numbers, they get pruned periodically). Then set
+  `mac` `arm64`/`x64`. For Windows, do **not** use the public `spc-max`
+  zip — it has no sodium; run `pwsh scripts/ci/build-windows-static-php.ps1 8.4 nativephp-php-bin-custom`
+  on a Windows machine instead, or check `dl.static-php.dev/static-php-cli/bulk/`
+  for current Linux/macOS version numbers). Then set
   `NATIVEPHP_PHP_BINARY_PATH=nativephp-php-bin-custom/` in `.env` (matching
   the `php_version` argument you passed to the PHP major.minor `native:build`
   itself will run with) before building.

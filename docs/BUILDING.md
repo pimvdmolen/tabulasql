@@ -102,14 +102,16 @@ to a GitHub Release when one is published.
   with sodium, a build using the default bundled PHP would install fine and
   then fail with "could not find driver" the moment anyone tries to connect,
   and would break `.dbmconn` export/import. `scripts/ci/fetch-static-php.php`
-  downloads a static-php-cli build that has both instead (from
-  `dl.static-php.dev`'s prebuilt "bulk" set for Linux/macOS, "spc-max" for
-  Windows), **verifies the required extensions by actually executing the
-  downloaded binary** (it always runs on the matching OS, so this is never a
-  cross-platform guess), and wires it in via `NATIVEPHP_PHP_BINARY_PATH`. It
-  exits with a clear error rather than silently shipping a broken binary if
-  anything's missing. See `nativephp-php-bin-custom/README.md` for the
-  equivalent manual local-dev setup this mirrors.
+  replaces it with a static-php-cli build that has both: Linux/macOS download
+  a prebuilt "bulk" archive via `scripts/ci/fetch-static-php.php`; Windows
+  builds one via `scripts/ci/build-windows-static-php.ps1` (the "spc-max"
+  prebuild omits sodium, which we need for encrypted `.dbmconn` export).
+  Either path **verifies the required extensions by actually executing the
+  binary** on the matching OS, then wires it in via
+  `NATIVEPHP_PHP_BINARY_PATH`. It exits with a clear error rather than
+  silently shipping a broken binary if anything's missing. See
+  `nativephp-php-bin-custom/README.md` for the equivalent manual local-dev
+  setup this mirrors.
 - The app's SQLite database is created at runtime in the user's app-data
   directory; no extra build steps needed.
 - Code signing: provide the usual Electron env vars (`CSC_LINK`,
