@@ -184,6 +184,44 @@ jobs:
               ;;
           esac
 
+      # Guard against shipping a desktop build without the bundled PHP CLI
+      # (NativePHP beforePack race). Without this binary the app opens then
+      # dies with spawn .../resources/build/php/php ENOENT.
+      - name: Verify bundled PHP binary is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ matrix.label }}" in
+            linux-x64)
+              cd nativephp/electron/dist
+              chmod +x TabulaSQL-linux-x64.AppImage
+              ./TabulaSQL-linux-x64.AppImage --appimage-extract >/dev/null
+              test -x squashfs-root/resources/build/php/php
+              file squashfs-root/resources/build/php/php | grep -qi 'elf\|executable'
+              ls -lh squashfs-root/resources/build/php/php
+              rm -rf squashfs-root
+              ;;
+            windows-x64)
+              # NSIS installer is not easy to inspect here; check unpacked dir
+              # if electron-builder left one, otherwise skip.
+              if [[ -f nativephp/electron/dist/win-unpacked/resources/build/php/php.exe ]]; then
+                ls -lh nativephp/electron/dist/win-unpacked/resources/build/php/php.exe
+              else
+                echo "No win-unpacked tree to verify; relying on build logs."
+              fi
+              ;;
+            macos-arm64|macos-x64)
+              # DMG mount is awkward in CI; prefer unpacked .app if present.
+              app=$(find nativephp/electron/dist -maxdepth 2 -type d -name '*.app' | head -1 || true)
+              if [[ -n "$app" ]]; then
+                test -x "$app/Contents/Resources/build/php/php"
+                ls -lh "$app/Contents/Resources/build/php/php"
+              else
+                echo "No .app tree to verify; relying on build logs."
+              fi
+              ;;
+          esac
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:

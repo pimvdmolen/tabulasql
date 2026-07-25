@@ -14,8 +14,10 @@ use Illuminate\Console\Command;
  *   instead of the bundled `yauzl` JS library, which has a reproducible
  *   silent-stall bug when this script runs as a descendant of PHP's Process
  *   runner (proc_open) — every `native:build`/`native:run` invocation.
+ * - electron-builder.mjs: wait for php.js in beforePack (stock uses async
+ *   exec without await, so CI Linux builds often shipped without PHP).
  *
- * Neither vendor file is tracked by git; both get regenerated fresh by
+ * Neither vendor file is tracked by git; all get regenerated fresh by
  * `native:install` whenever nativephp/desktop is installed/updated, which
  * would otherwise silently drop these fixes. Run after `native:install`
  * (composer.json's post-install-cmd/post-update-cmd already do this) and
@@ -31,6 +33,7 @@ class PatchElectronMain extends Command
     private const FILES = [
         'electron-main-index.js' => 'src/main/index.js',
         'electron-php.js' => 'php.js',
+        'electron-builder.mjs' => 'electron-builder.mjs',
     ];
 
     public function handle(): int
