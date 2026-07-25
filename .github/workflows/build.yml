@@ -67,7 +67,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php_version }}
-          extensions: pdo_mysql, sqlite3, sodium, mbstring, zip
+          extensions: pdo_mysql, sqlite3, sodium, mbstring, zip, fileinfo
           coverage: none
 
       - name: Setup Node
@@ -132,7 +132,7 @@ jobs:
       - name: Rename artifacts
         shell: bash
         run: |
-          cd dist
+          cd nativephp/electron/dist
           ls -la
           case "${{ matrix.label }}" in
             linux-x64)
@@ -154,7 +154,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.label }}
-          path: dist/TabulaSQL-*
+          path: nativephp/electron/dist/TabulaSQL-*
           if-no-files-found: error
           retention-days: 14
 
@@ -162,6 +162,6 @@ jobs:
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/TabulaSQL-*
+          files: nativephp/electron/dist/TabulaSQL-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

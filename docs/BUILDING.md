@@ -18,8 +18,10 @@ php artisan native:build mac arm64
 php artisan native:build mac x64
 ```
 
-Artifacts land in `dist/`. Electron can only build for the OS it runs on
-(cross-building Windows from Linux works with Wine, macOS requires a Mac).
+Artifacts land in `nativephp/electron/dist/` (configured as
+`directories.output` in `vendor/nativephp/desktop/resources/electron/electron-builder.mjs`).
+Electron can only build for the OS it runs on (cross-building Windows from
+Linux works with Wine, macOS requires a Mac).
 
 Before building:
 
