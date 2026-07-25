@@ -31,6 +31,8 @@ it('copies maintained patch files over their vendor counterparts', function () {
     expect(file_get_contents($builderTarget))
         ->toBe(file_get_contents(resource_path('nativephp-patches/electron-builder.mjs')))
         ->toContain('execFileSync')
+        ->toContain('fileURLToPath')
+        ->toContain('cwd: electronDir')
         ->not->toContain("exec(`node php.js");
 
     file_put_contents($mainTarget, $originalMain);

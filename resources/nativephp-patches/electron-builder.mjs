@@ -1,5 +1,8 @@
 import { execFileSync } from 'child_process';
-import { join } from 'path';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+
+const electronDir = dirname(fileURLToPath(import.meta.url));
 
 const appUrl = process.env.APP_URL;
 const appId = process.env.NATIVEPHP_APP_ID;
@@ -79,12 +82,16 @@ export default {
 
         // Must be synchronous: the stock NativePHP hook used fire-and-forget
         // `exec()`, so electron-builder often packed extraResources before
-        // php.js finished. Linux AppImage/.deb then shipped without
-        // resources/build/php/php and crashed on launch with ENOENT.
-        console.log(`  • building php binary - node php.js --${targetOs} --${arch}`);
-        execFileSync(process.execPath, ['php.js', `--${targetOs}`, `--${arch}`], {
+        // php.js finished (or never ran it: wrong cwd). Linux AppImage/.deb
+        // then shipped without resources/build/php/php and crashed on launch.
+        // Resolve php.js from this config file's directory — electron-builder's
+        // process.cwd() is often the Laravel app root, not the electron package.
+        const phpJs = join(electronDir, 'php.js');
+        console.log(`  • building php binary - node ${phpJs} --${targetOs} --${arch}`);
+        execFileSync(process.execPath, [phpJs, `--${targetOs}`, `--${arch}`], {
             stdio: 'inherit',
             env: process.env,
+            cwd: electronDir,
         });
     },
     afterSign: 'build/notarize.js',

@@ -172,16 +172,21 @@ jobs:
           ls -la
           case "${{ matrix.label }}" in
             linux-x64)
+              test -f tabulasql_*_amd64.deb || { echo "Missing .deb after native:build"; exit 1; }
+              test -f TabulaSQL-*.AppImage || { echo "Missing AppImage after native:build"; ls -la; exit 1; }
               mv -v tabulasql_*_amd64.deb "TabulaSQL-linux-x64.deb"
               mv -v TabulaSQL-*.AppImage "TabulaSQL-linux-x64.AppImage"
               ;;
             windows-x64)
+              test -f TabulaSQL-*-setup.exe || { echo "Missing Windows setup.exe after native:build"; ls -la; exit 1; }
               mv -v TabulaSQL-*-setup.exe "TabulaSQL-windows-x64-setup.exe"
               ;;
             macos-arm64)
+              test -f TabulaSQL-*-arm64.dmg || { echo "Missing macOS arm64 dmg after native:build"; ls -la; exit 1; }
               mv -v TabulaSQL-*-arm64.dmg "TabulaSQL-macos-arm64.dmg"
               ;;
             macos-x64)
+              test -f TabulaSQL-*-x64.dmg || { echo "Missing macOS x64 dmg after native:build"; ls -la; exit 1; }
               mv -v TabulaSQL-*-x64.dmg "TabulaSQL-macos-x64.dmg"
               ;;
           esac
