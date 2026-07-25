@@ -33,10 +33,10 @@ you're doing:
   standalone outside of CI too:
   ```bash
   php -d memory_limit=-1 scripts/ci/fetch-static-php.php \
-    "https://dl.static-php.dev/static-php-cli/bulk/php-8.3.32-cli-linux-x86_64.tar.gz" \
-    tar.gz linux x64 8.3 nativephp-php-bin-custom
+    "https://dl.static-php.dev/static-php-cli/bulk/php-8.4.23-cli-linux-x86_64.tar.gz" \
+    tar.gz linux x64 8.4 nativephp-php-bin-custom
   ```
-  (swap the URL/args for macOS `.../bulk/php-8.3.32-cli-macos-{aarch64,x86_64}.tar.gz` /
+  (swap the URL/args for macOS `.../bulk/php-8.4.23-cli-macos-{aarch64,x86_64}.tar.gz` /
   `mac` `arm64`/`x64`, or Windows `.../windows/spc-max/php-8.4.20-cli-win.zip` /
   `win` `x64` — check `dl.static-php.dev/static-php-cli/{bulk,windows/spc-max}/`
   for current version numbers, they get pruned periodically). Then set

@@ -28,10 +28,10 @@ jobs:
           - os: ubuntu-latest
             target: linux x64
             label: linux-x64
-            php_version: '8.3'
+            php_version: '8.4'
             spc_os: linux
             spc_arch: x64
-            spc_url: https://dl.static-php.dev/static-php-cli/bulk/php-8.3.32-cli-linux-x86_64.tar.gz
+            spc_url: https://dl.static-php.dev/static-php-cli/bulk/php-8.4.23-cli-linux-x86_64.tar.gz
             spc_archive: tar.gz
           - os: windows-latest
             target: win x64
@@ -44,18 +44,18 @@ jobs:
           - os: macos-latest
             target: mac arm64
             label: macos-arm64
-            php_version: '8.3'
+            php_version: '8.4'
             spc_os: mac
             spc_arch: arm64
-            spc_url: https://dl.static-php.dev/static-php-cli/bulk/php-8.3.32-cli-macos-aarch64.tar.gz
+            spc_url: https://dl.static-php.dev/static-php-cli/bulk/php-8.4.23-cli-macos-aarch64.tar.gz
             spc_archive: tar.gz
           - os: macos-latest
             target: mac x64
             label: macos-x64
-            php_version: '8.3'
+            php_version: '8.4'
             spc_os: mac
             spc_arch: x64
-            spc_url: https://dl.static-php.dev/static-php-cli/bulk/php-8.3.32-cli-macos-x86_64.tar.gz
+            spc_url: https://dl.static-php.dev/static-php-cli/bulk/php-8.4.23-cli-macos-x86_64.tar.gz
             spc_archive: tar.gz
 
     runs-on: ${{ matrix.os }}
