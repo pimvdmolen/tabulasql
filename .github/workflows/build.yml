@@ -131,9 +131,9 @@ jobs:
         if: matrix.spc_mode == 'build' && steps.win-php-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          pwsh -File scripts/ci/build-windows-static-php.ps1 `
-            "${{ matrix.php_version }}" `
-            "${{ runner.temp }}/php-bin-custom"
+          & ./scripts/ci/build-windows-static-php.ps1 `
+            -PhpVersion '${{ matrix.php_version }}' `
+            -DestBaseDir '${{ runner.temp }}/php-bin-custom'
 
       - name: Point NativePHP at the Windows PHP runtime
         if: matrix.spc_mode == 'build'
