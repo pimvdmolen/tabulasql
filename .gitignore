@@ -34,6 +34,10 @@ Thumbs.db
 /.github/copilot-instructions.md
 /.roo/
 
+# Internal planning / agent prompts — keep local only
+/PLAN.md
+/docs/BUILDING-CURSOR-PROMPT.md
+
 # Marketing assets (screenshots/video for the website) — not project source,
 # and the video/images would otherwise bloat every clone forever
 /marketing/
