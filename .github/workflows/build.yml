@@ -1,11 +1,13 @@
 name: Build desktop app
 
-# Runs on every push to main (build-only sanity check, nothing published)
-# and whenever a GitHub Release is published (builds all platforms and
-# attaches the installers to that release). Can also be run manually.
+# Runs on every push to main (build-only sanity check, nothing published),
+# on version tags (build + create/attach GitHub Release assets), whenever a
+# GitHub Release is published, and on manual workflow_dispatch.
 on:
   push:
     branches: [main]
+    tags:
+      - 'v*'
   pull_request:
   release:
     types: [published]
@@ -231,9 +233,11 @@ jobs:
           retention-days: 14
 
       - name: Attach to release
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: nativephp/electron/dist/TabulaSQL-*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
