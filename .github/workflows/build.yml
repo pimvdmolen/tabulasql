@@ -105,6 +105,10 @@ jobs:
       # both, and point NATIVEPHP_PHP_BINARY_PATH at it. Linux/macOS download
       # a prebuilt "bulk" archive; Windows builds one (spc-max has no sodium).
       # Either path verifies the binary by executing it on the matching OS.
+      # NativePHP's LocatesPhpBinary does sourcePath(env . 'bin/'). Symfony
+      # Path::join treats an absolute env path as a relative segment, so
+      # /tmp/... becomes <repo>/tmp/... and php.js cannot find the zip.
+      # Keep this path relative to the repo root (same as local .env).
       - name: Fetch a portable PHP runtime with pdo_mysql + sodium
         if: matrix.spc_mode == 'download'
         shell: bash
@@ -115,8 +119,9 @@ jobs:
             "${{ matrix.spc_os }}" \
             "${{ matrix.spc_arch }}" \
             "${{ matrix.php_version }}" \
-            "${{ runner.temp }}/php-bin-custom"
-          echo "NATIVEPHP_PHP_BINARY_PATH=${{ runner.temp }}/php-bin-custom/" >> "$GITHUB_ENV"
+            nativephp-php-bin-custom
+          test -f "nativephp-php-bin-custom/bin/${{ matrix.spc_os }}/${{ matrix.spc_arch }}/php-${{ matrix.php_version }}.zip"
+          echo "NATIVEPHP_PHP_BINARY_PATH=nativephp-php-bin-custom/" >> "$GITHUB_ENV"
 
       # Cache the Windows-built PHP zip so we don't recompile from source on
       # every push (spc build is several minutes). Key includes the script so
@@ -126,7 +131,7 @@ jobs:
         id: win-php-cache
         uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}/php-bin-custom
+          path: nativephp-php-bin-custom
           key: win-static-php-${{ matrix.php_version }}-${{ hashFiles('scripts/ci/build-windows-static-php.ps1') }}
 
       - name: Build a portable PHP runtime with pdo_mysql + sodium (Windows)
@@ -139,7 +144,7 @@ jobs:
           $script = Join-Path $pwd 'scripts/ci/build-windows-static-php.ps1'
           if (-not (Test-Path $script)) { throw "Script not found: $script" }
           Write-Host "Invoking $script"
-          & $script -PhpVersion '${{ matrix.php_version }}' -DestBaseDir (Join-Path $env:RUNNER_TEMP 'php-bin-custom')
+          & $script -PhpVersion '${{ matrix.php_version }}' -DestBaseDir (Join-Path $pwd 'nativephp-php-bin-custom')
           if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
             throw "build-windows-static-php.ps1 exited with code $LASTEXITCODE"
           }
@@ -147,7 +152,10 @@ jobs:
       - name: Point NativePHP at the Windows PHP runtime
         if: matrix.spc_mode == 'build'
         shell: bash
-        run: echo "NATIVEPHP_PHP_BINARY_PATH=${{ runner.temp }}/php-bin-custom/" >> "$GITHUB_ENV"
+        run: |
+          ls -la nativephp-php-bin-custom/bin/win/x64/
+          test -f "nativephp-php-bin-custom/bin/win/x64/php-${{ matrix.php_version }}.zip"
+          echo "NATIVEPHP_PHP_BINARY_PATH=nativephp-php-bin-custom/" >> "$GITHUB_ENV"
 
       # Drive the release version from the git tag (e.g. refs/tags/v1.2.0 ->
       # 1.2.0) so artifact filenames/app version stay in sync with the
@@ -161,6 +169,30 @@ jobs:
 
       - name: Build native app
         run: php artisan native:build ${{ matrix.target }} --no-interaction
+
+      # NativePHP's BuildCommand ignores electron-builder's exit code, so a
+      # failed pack still looks green. Fail here if installers are missing.
+      - name: Assert installers were produced
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd nativephp/electron/dist
+          ls -la
+          case "${{ matrix.label }}" in
+            linux-x64)
+              compgen -G 'tabulasql_*_amd64.deb' >/dev/null
+              compgen -G 'TabulaSQL-*.AppImage' >/dev/null
+              ;;
+            windows-x64)
+              compgen -G 'TabulaSQL-*-setup.exe' >/dev/null
+              ;;
+            macos-arm64)
+              compgen -G 'TabulaSQL-*-arm64.dmg' >/dev/null
+              ;;
+            macos-x64)
+              compgen -G 'TabulaSQL-*-x64.dmg' >/dev/null
+              ;;
+          esac
 
       # Release assets get a stable, version-free filename so a website's
       # download links (github.com/OWNER/REPO/releases/latest/download/<name>)
