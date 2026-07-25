@@ -1,0 +1,153 @@
+@import 'tailwindcss';
+
+@source '../../storage/framework/views/*.php';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+    --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    --font-mono: ui-monospace, 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
+}
+
+/* Semantic UI colors, flipped by the light/dark theme. */
+@theme inline {
+    --color-surface: var(--ui-surface);
+    --color-chrome: var(--ui-chrome);
+    --color-raised: var(--ui-raised);
+    --color-overlay: var(--ui-overlay);
+    --color-edge: var(--ui-edge);
+    --color-grid: var(--ui-grid);
+    --color-strong: var(--ui-text-strong);
+    --color-body: var(--ui-text-body);
+    --color-dim: var(--ui-text-dim);
+    --color-muted: var(--ui-text-muted);
+    --color-faint: var(--ui-text-faint);
+}
+
+:root {
+    --ui-surface: #ffffff;
+    --ui-chrome: #f4f4f5;
+    --ui-raised: #e9e9eb;
+    --ui-overlay: #d4d4d8;
+    --ui-edge: #d4d4d8;
+    --ui-grid: #e4e4e7;
+    --ui-text-strong: #18181b;
+    --ui-text-body: #27272a;
+    --ui-text-dim: #52525b;
+    --ui-text-muted: #71717a;
+    --ui-text-faint: #a1a1aa;
+}
+
+.dark {
+    --ui-surface: #18181b;
+    --ui-chrome: #09090b;
+    --ui-raised: #27272a;
+    --ui-overlay: #3f3f46;
+    --ui-edge: #3f3f46;
+    --ui-grid: #27272a;
+    --ui-text-strong: #f4f4f5;
+    --ui-text-body: #d4d4d8;
+    --ui-text-dim: #a1a1aa;
+    --ui-text-muted: #71717a;
+    --ui-text-faint: #52525b;
+}
+
+/*
+ * "Tabula Classic", a light theme styled after classic Windows database
+ * tools: pale gray-blue chrome, white panels, and a crisp, saturated blue
+ * accent instead of the app's default (slightly cyan-leaning) sky blue.
+ * The higher-specificity selector (:root[data-theme] beats a bare :root)
+ * lets this override the --ui-* and --color-sky-* variables no matter
+ * where those are declared, including Tailwind's own generated :root
+ * theme block.
+ */
+:root[data-theme="classic"] {
+    --ui-surface: #ffffff;
+    --ui-chrome: #e7ecf2;
+    --ui-raised: #eef2f6;
+    --ui-overlay: #d6dee6;
+    --ui-edge: #c5cfd9;
+    --ui-grid: #dde4ea;
+    --ui-text-strong: #182531;
+    --ui-text-body: #2e3d4a;
+    --ui-text-dim: #56636e;
+    --ui-text-muted: #798590;
+    --ui-text-faint: #9fa9b1;
+
+    --color-sky-500: #2079d6;
+    --color-sky-600: #0f62b3;
+    --color-sky-700: #0a4a86;
+}
+
+/* Slightly larger UI scale: all Tailwind text/spacing utilities are
+   rem-based, so bumping the root font size scales the whole app. */
+:root {
+    font-size: 17.75px;
+}
+
+[x-cloak] {
+    display: none !important;
+}
+
+@utility input-field {
+    width: 100%;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--ui-edge);
+    background: var(--ui-raised);
+    padding: calc(var(--spacing) * 1) calc(var(--spacing) * 2);
+    font-size: var(--text-sm);
+    color: var(--ui-text-body);
+
+    &::placeholder {
+        color: var(--ui-text-muted);
+    }
+
+    &:focus {
+        outline: none;
+        border-color: var(--color-sky-500);
+    }
+}
+
+/* CodeMirror fills its pane */
+.cm-editor {
+    height: 100%;
+    font-size: 0.78rem;
+}
+
+.cm-editor.cm-focused {
+    outline: none;
+}
+
+kbd {
+    padding: 0 4px;
+    border: 1px solid var(--ui-edge);
+    border-radius: 3px;
+    background: var(--ui-raised);
+    font-size: 0.7rem;
+}
+
+/* Slim scrollbars, dense UI */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--ui-overlay) transparent;
+}
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--ui-overlay);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* After column autofit / manual resize, explicit widths own the layout —
+   drop the default max-w-md cap so long cell content can actually show. */
+table.grid-cols-sized td {
+    max-width: none;
+}

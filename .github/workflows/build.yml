@@ -1,0 +1,167 @@
+name: Build desktop app
+
+# Runs on every push to main (build-only sanity check, nothing published)
+# and whenever a GitHub Release is published (builds all platforms and
+# attaches the installers to that release). Can also be run manually.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write # needed to attach files to a release
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # nativephp/php-bin's own bundled PHP has no pdo_mysql/sodium (see
+          # scripts/ci/fetch-static-php.php), so every job downloads and
+          # verifies a static-php-cli build with both instead. Its filename
+          # must be "php-{php_version}.zip", so php_version here must match
+          # exactly what Setup PHP installs below.
+          - os: ubuntu-latest
+            target: linux x64
+            label: linux-x64
+            php_version: '8.3'
+            spc_os: linux
+            spc_arch: x64
+            spc_url: https://dl.static-php.dev/static-php-cli/bulk/php-8.3.32-cli-linux-x86_64.tar.gz
+            spc_archive: tar.gz
+          - os: windows-latest
+            target: win x64
+            label: windows-x64
+            php_version: '8.4'
+            spc_os: win
+            spc_arch: x64
+            spc_url: https://dl.static-php.dev/static-php-cli/windows/spc-max/php-8.4.20-cli-win.zip
+            spc_archive: zip
+          - os: macos-latest
+            target: mac arm64
+            label: macos-arm64
+            php_version: '8.3'
+            spc_os: mac
+            spc_arch: arm64
+            spc_url: https://dl.static-php.dev/static-php-cli/bulk/php-8.3.32-cli-macos-aarch64.tar.gz
+            spc_archive: tar.gz
+          - os: macos-latest
+            target: mac x64
+            label: macos-x64
+            php_version: '8.3'
+            spc_os: mac
+            spc_arch: x64
+            spc_url: https://dl.static-php.dev/static-php-cli/bulk/php-8.3.32-cli-macos-x86_64.tar.gz
+            spc_archive: tar.gz
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php_version }}
+          extensions: pdo_mysql, sqlite3, sodium, mbstring, zip
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Composer dependencies
+        run: composer install --no-dev --prefer-dist --no-interaction --no-progress
+
+      - name: Prepare environment
+        shell: bash
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Install NPM dependencies
+        run: npm ci
+
+      - name: Build front-end assets
+        run: npm run build
+
+      # nativephp/php-bin's default bundled PHP lacks pdo_mysql and sodium
+      # (verified against the actual downloaded package — see
+      # nativephp-php-bin-custom/README.md), which would silently break both
+      # MySQL connections and encrypted connection export/import in any
+      # build that used it. Download+verify a static-php-cli build with both
+      # instead, and point NATIVEPHP_PHP_BINARY_PATH at it. This runs on the
+      # matching OS in this matrix (e.g. the Windows job runs it on an actual
+      # windows-latest runner), so it can always execute the downloaded
+      # binary directly to verify it — see scripts/ci/fetch-static-php.php
+      # for exactly what's checked, and fails the build loudly if anything
+      # required is missing rather than shipping a broken binary quietly.
+      - name: Fetch a portable PHP runtime with pdo_mysql + sodium
+        shell: bash
+        run: |
+          php -d memory_limit=-1 scripts/ci/fetch-static-php.php \
+            "${{ matrix.spc_url }}" \
+            "${{ matrix.spc_archive }}" \
+            "${{ matrix.spc_os }}" \
+            "${{ matrix.spc_arch }}" \
+            "${{ matrix.php_version }}" \
+            "${{ runner.temp }}/php-bin-custom"
+          echo "NATIVEPHP_PHP_BINARY_PATH=${{ runner.temp }}/php-bin-custom/" >> "$GITHUB_ENV"
+
+      # Drive the release version from the git tag (e.g. refs/tags/v1.2.0 ->
+      # 1.2.0) so artifact filenames/app version stay in sync with the
+      # release automatically — no manual version bump needed before
+      # tagging. Falls back to config/nativephp.php's default on plain
+      # pushes/manual runs, where there is no tag.
+      - name: Derive app version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: echo "NATIVEPHP_APP_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Build native app
+        run: php artisan native:build ${{ matrix.target }} --no-interaction
+
+      # Release assets get a stable, version-free filename so a website's
+      # download links (github.com/OWNER/REPO/releases/latest/download/<name>)
+      # never need to change between releases.
+      - name: Rename artifacts
+        shell: bash
+        run: |
+          cd dist
+          ls -la
+          case "${{ matrix.label }}" in
+            linux-x64)
+              mv -v tabulasql_*_amd64.deb "TabulaSQL-linux-x64.deb"
+              mv -v TabulaSQL-*.AppImage "TabulaSQL-linux-x64.AppImage"
+              ;;
+            windows-x64)
+              mv -v TabulaSQL-*-setup.exe "TabulaSQL-windows-x64-setup.exe"
+              ;;
+            macos-arm64)
+              mv -v TabulaSQL-*-arm64.dmg "TabulaSQL-macos-arm64.dmg"
+              ;;
+            macos-x64)
+              mv -v TabulaSQL-*-x64.dmg "TabulaSQL-macos-x64.dmg"
+              ;;
+          esac
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.label }}
+          path: dist/TabulaSQL-*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/TabulaSQL-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
