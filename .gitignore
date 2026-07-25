@@ -28,15 +28,16 @@ Homestead.yaml
 Thumbs.db
 /nativephp/electron/dist
 
-# AI tool configs — personal/machine-specific, not relevant to contributors
+# Local editor / tooling configs (not part of the public tree)
 /.claude/
 .clinerules
 /.github/copilot-instructions.md
 /.roo/
 
-# Internal planning / agent prompts — keep local only
+# Internal notes (local only)
 /PLAN.md
 /docs/BUILDING-CURSOR-PROMPT.md
+/docs/BUILDING-LOCAL-NOTES.md
 
 # Marketing assets (screenshots/video for the website) — not project source,
 # and the video/images would otherwise bloat every clone forever
