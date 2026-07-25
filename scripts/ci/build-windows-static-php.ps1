@@ -123,7 +123,9 @@ try {
     Write-Host "Using PHP binary: $BinPath"
 
     Write-Host "Verifying required extensions..."
-    $Modules = & $BinPath -m 2>&1 | Out-String
+    # Windows php.exe emits CRLF; (?m)^name$ otherwise fails on the trailing CR
+    # even when the extension is present (exactly how the previous CI run died).
+    $Modules = ((& $BinPath -m 2>&1 | Out-String) -replace "`r", "")
     Write-Host $Modules
     foreach ($Extension in $RequiredExtensions) {
         if ($Modules -notmatch "(?m)^$([regex]::Escape($Extension))$") {
@@ -131,8 +133,8 @@ try {
         }
     }
 
-    $PdoCheck = & $BinPath -r "new PDO('sqlite::memory:'); echo 'ok';" 2>&1 | Out-String
-    if ($PdoCheck.Trim() -ne "ok") {
+    $PdoCheck = ((& $BinPath -r "new PDO('sqlite::memory:'); echo 'ok';" 2>&1 | Out-String) -replace "`r", "").Trim()
+    if ($PdoCheck -ne "ok") {
         throw "PDO sqlite driver check failed in built static PHP: $PdoCheck"
     }
 
