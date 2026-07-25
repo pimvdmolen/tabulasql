@@ -17,7 +17,28 @@ param(
     [Parameter(Mandatory = $true)][string]$DestBaseDir
 )
 
+# Native command stderr/exit must NOT become terminating errors — we check
+# $LASTEXITCODE ourselves. (Default PS 7 + ErrorAction Stop can otherwise
+# abort before our checks, with a useless generic exit code 1.)
 $ErrorActionPreference = "Stop"
+$PSNativeCommandUseErrorActionPreference = $false
+
+function Invoke-Native {
+    param(
+        [Parameter(Mandatory = $true)][string]$FilePath,
+        [Parameter(Mandatory = $false)][string[]]$Arguments = @()
+    )
+    Write-Host "::group::Running: $FilePath $($Arguments -join ' ')"
+    & $FilePath @Arguments
+    $code = $LASTEXITCODE
+    Write-Host "::endgroup::"
+    if ($null -eq $code) {
+        throw "Command did not set an exit code: $FilePath $($Arguments -join ' ')"
+    }
+    if ($code -ne 0) {
+        throw "Command failed (exit $code): $FilePath $($Arguments -join ' ')"
+    }
+}
 
 $RequiredExtensions = @(
     "pdo_mysql",
@@ -29,7 +50,6 @@ $RequiredExtensions = @(
 )
 
 # Lean but complete set for Laravel + this app (MySQL + sodium crypto).
-# Keep in sync with nativephp-php-bin-custom/README.md where practical.
 $BuildExtensions = @(
     "bcmath", "bz2", "ctype", "curl", "dom", "fileinfo", "filter", "gd",
     "iconv", "mbstring", "mbregex", "opcache", "openssl", "pdo", "pdo_mysql",
@@ -37,46 +57,49 @@ $BuildExtensions = @(
     "sqlite3", "tokenizer", "xml", "zip", "zlib"
 ) -join ","
 
-$Work = Join-Path $env:RUNNER_TEMP ("spc-win-build-" + [guid]::NewGuid().ToString("N"))
-if (-not $env:RUNNER_TEMP) {
-    $Work = Join-Path ([System.IO.Path]::GetTempPath()) ("spc-win-build-" + [guid]::NewGuid().ToString("N"))
+$TempRoot = $env:RUNNER_TEMP
+if ([string]::IsNullOrWhiteSpace($TempRoot)) {
+    $TempRoot = [System.IO.Path]::GetTempPath()
 }
+$Work = Join-Path $TempRoot ("spc-win-build-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force -Path $Work | Out-Null
 Set-Location $Work
 Write-Host "Working directory: $Work"
+Write-Host "PhpVersion=$PhpVersion DestBaseDir=$DestBaseDir"
 
-# Official docs use curl.exe (follows redirects cleanly; avoids MotW quirks
-# that Invoke-WebRequest can leave on the downloaded .exe).
-$SpcUrl = "https://dl.static-php.dev/static-php-cli/spc-bin/nightly/spc-windows-x64.exe"
+# v3 nightly matches current static-php.dev docs / hosted Windows builds.
+$SpcUrl = "https://dl.static-php.dev/v3/spc-bin/nightly/spc-windows-x64.exe"
 $SpcExe = Join-Path $Work "spc.exe"
 
 Write-Host "Downloading static-php-cli from $SpcUrl ..."
-& curl.exe -fsSL -o $SpcExe $SpcUrl
-if ($LASTEXITCODE -ne 0) { throw "curl failed downloading spc.exe (exit $LASTEXITCODE)" }
-if (-not (Test-Path $SpcExe) -or (Get-Item $SpcExe).Length -lt 1MB) {
-    throw "spc.exe download looks wrong (missing or too small)"
+Invoke-Native -FilePath curl.exe -Arguments @("-fsSL", "-o", $SpcExe, $SpcUrl)
+$spcSize = (Get-Item $SpcExe).Length
+Write-Host "spc.exe size: $spcSize bytes"
+if ($spcSize -lt 1MB) {
+    throw "spc.exe download looks wrong (too small: $spcSize bytes)"
 }
 Unblock-File -Path $SpcExe -ErrorAction SilentlyContinue
 
-Write-Host "spc.exe size: $((Get-Item $SpcExe).Length) bytes"
-& $SpcExe --version
-if ($LASTEXITCODE -ne 0) { throw "spc --version failed (exit $LASTEXITCODE)" }
+Invoke-Native -FilePath $SpcExe -Arguments @("--version")
+Invoke-Native -FilePath $SpcExe -Arguments @("doctor", "--auto-fix")
 
-Write-Host "Running spc doctor --auto-fix..."
-& $SpcExe doctor --auto-fix
-if ($LASTEXITCODE -ne 0) { throw "spc doctor failed with exit code $LASTEXITCODE" }
-
-# Same shape as static-php/hosted's Windows workflow: download+build in one
-# `spc build` invocation via --dl-with-php (avoids flag drift between spc versions).
 Write-Host "Building PHP $PhpVersion CLI with extensions: $BuildExtensions"
-& $SpcExe build --build-cli $BuildExtensions --dl-with-php=$PhpVersion --dl-retry=5 --debug
-if ($LASTEXITCODE -ne 0) { throw "spc build failed with exit code $LASTEXITCODE" }
+Invoke-Native -FilePath $SpcExe -Arguments @(
+    "build",
+    "--build-cli", $BuildExtensions,
+    "--dl-with-php=$PhpVersion",
+    "--dl-retry=5",
+    "--debug"
+)
 
 $BinPath = Join-Path $Work "buildroot\bin\php.exe"
 if (-not (Test-Path $BinPath)) {
     Write-Host "buildroot tree:"
     if (Test-Path (Join-Path $Work "buildroot")) {
-        Get-ChildItem -Recurse (Join-Path $Work "buildroot") | Select-Object -First 50 FullName
+        Get-ChildItem -Recurse (Join-Path $Work "buildroot") | Select-Object -First 80 | ForEach-Object { $_.FullName }
+    } else {
+        Write-Host "(no buildroot directory at all)"
+        Get-ChildItem $Work | ForEach-Object { $_.FullName }
     }
     throw "Expected PHP binary not found after build: $BinPath"
 }
@@ -100,10 +123,8 @@ Write-Host "Verified extensions: $($RequiredExtensions -join ', ') (+ working PD
 $DestDir = Join-Path $DestBaseDir "bin\win\x64"
 New-Item -ItemType Directory -Force -Path $DestDir | Out-Null
 $DestZip = Join-Path $DestDir "php-$PhpVersion.zip"
-
 if (Test-Path $DestZip) { Remove-Item -Force $DestZip }
 
-# Zip only the bare php.exe at the archive root (NativePHP extracts a single entry).
 $Stage = Join-Path $Work "zip-stage"
 New-Item -ItemType Directory -Force -Path $Stage | Out-Null
 Copy-Item $BinPath (Join-Path $Stage "php.exe")
