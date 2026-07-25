@@ -1,9 +1,27 @@
 # TabulaSQL
 
-A fast, SQLyog-inspired MySQL/MariaDB desktop client for Linux, Windows and
-macOS, built with Laravel, Livewire and NativePHP.
+A fast, free MySQL/MariaDB desktop client for Linux, Windows and macOS,
+built with Laravel, Livewire and NativePHP.
 
-> Screenshots coming soon.
+Website: [tabulasql.com](https://tabulasql.com)
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/01-hero-overview.png" alt="TabulaSQL overview: connections, object explorer, SQL editor and data grid" width="800">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/13-hero-query.png" alt="SQL editor with query results" width="390">
+  &nbsp;
+  <img src="docs/screenshots/14-hero-dark.png" alt="TabulaSQL in dark theme" width="390">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/03-query-results.png" alt="Query results grid" width="390">
+  &nbsp;
+  <img src="docs/screenshots/04-data-grid.png" alt="Table data grid with inline editing" width="390">
+</p>
 
 ## Features
 
@@ -13,7 +31,7 @@ macOS, built with Laravel, Livewire and NativePHP.
 - **Object explorer**: databases with tables/views with row counts,
   lazy-loaded columns and indexes, live filter with optional regex
 - **Query editor**: CodeMirror 6 with schema-aware autocompletion, multiple
-  query tabs, multi-statement execution, default `LIMIT` injection on
+  query tabs, multi-statement execution, optional `LIMIT` injection on
   unlimited SELECTs, EXPLAIN, searchable per-connection query history
 - **Data grid**: paging, sorting, custom filters (with SQL preview and
   removable chips), quick filters, inline editing (double-click; date/enum
@@ -27,8 +45,7 @@ macOS, built with Laravel, Livewire and NativePHP.
   live progress), pure-PHP SQL dumps (no `mysqldump` needed), SQL import with
   per-statement error reporting, resultset export to CSV/JSON/SQL
 - **Comfort**: light/dark/auto theme, context menus everywhere, keyboard
-  shortcuts, session restore, dense SQLyog-style layout with draggable
-  splitters
+  shortcuts, session restore, dense layout with draggable splitters
 
 ## Requirements
 
