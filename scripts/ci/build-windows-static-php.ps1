@@ -56,15 +56,16 @@ try {
         "sqlite3",
         "mbstring",
         "zip",
-        "openssl",
-        "intl"
+        "openssl"
     )
 
-    # App-focused set: skip gd/opcache (common Windows static-build footguns;
-    # this DB client does not need them). Keep sodium + pdo_mysql + intl.
+    # App-focused set: skip gd/opcache/intl (common Windows static-build
+    # footguns; this DB client does not need them). Keep sodium + pdo_mysql.
+    # intl fails to build via static-php-cli on Windows (exit 75); UI code
+    # must not call Laravel Number::* helpers that require it.
     $BuildExtensions = @(
         "bcmath", "ctype", "curl", "dom", "fileinfo", "filter", "iconv",
-        "intl", "mbstring", "mbregex", "openssl", "pdo", "pdo_mysql", "pdo_sqlite",
+        "mbstring", "mbregex", "openssl", "pdo", "pdo_mysql", "pdo_sqlite",
         "phar", "session", "simplexml", "sockets", "sodium", "sqlite3",
         "tokenizer", "xml", "zip", "zlib"
     ) -join ","
