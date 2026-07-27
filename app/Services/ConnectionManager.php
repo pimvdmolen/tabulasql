@@ -94,9 +94,8 @@ class ConnectionManager
             }
         }
 
-        if ($connection->use_ssh) {
-            $this->tunnels->stop($connection->id);
-        }
+        // Always stop any tunnel for this id (e.g. after turning SSH off).
+        $this->tunnels->stop($connection->id);
     }
 
     /**

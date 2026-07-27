@@ -154,7 +154,7 @@ class ConnectionForm extends Component
         $connection->fill($this->payload())->save();
 
         $this->open = false;
-        $this->dispatch('connection-saved');
+        $this->dispatch('connection-saved', id: $connection->id);
     }
 
     public function close(): void

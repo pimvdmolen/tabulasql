@@ -52,6 +52,7 @@ class CopyWizard extends Component
 
         $this->context = [
             'connectionId' => $connectionId,
+            'connectionName' => $connection->name,
             'database' => $database,
             'objects' => [
                 ...$explorer->tables($connection, $database),

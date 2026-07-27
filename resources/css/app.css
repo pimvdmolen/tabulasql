@@ -146,8 +146,61 @@ kbd {
     background: transparent;
 }
 
-/* After column autofit / manual resize, explicit widths own the layout —
+/* After column autofit / manual resize, explicit widths own the layout ;
    drop the default max-w-md cap so long cell content can actually show. */
 table.grid-cols-sized td {
     max-width: none;
+}
+
+/* Native-feeling number fields: hide browser spinner arrows. */
+input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* Checkboxes that follow the theme instead of OS chrome. */
+input[type='checkbox'] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 0.8125rem;
+    height: 0.8125rem;
+    margin: 0;
+    border: 1px solid var(--ui-edge);
+    border-radius: 0.2rem;
+    background: var(--ui-raised);
+    vertical-align: middle;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+input[type='checkbox']:checked {
+    border-color: var(--color-sky-500);
+    background-color: var(--color-sky-500);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5 6.5 11.5 12.5 4.5'/%3E%3C/svg%3E");
+    background-size: 100% 100%;
+    background-position: center;
+}
+
+input[type='checkbox']:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--color-sky-500) 55%, transparent);
+    outline-offset: 1px;
+}
+
+input[type='checkbox']:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* Keep inline cell editors from expanding the column. */
+td .cell-editor {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
 }

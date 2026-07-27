@@ -226,6 +226,16 @@ export function registerContextMenu(Alpine) {
     // Connections sidebar: connection menu
     window.treeConnectionMenu = ($wire, p) => [
         {
+            label: 'Connect',
+            disabled: p.isOpen,
+            run: () => $wire.openConnection(p.connectionId),
+        },
+        {
+            label: 'Duplicate Connection',
+            run: () => $wire.duplicateConnection(p.connectionId),
+        },
+        { divider: true },
+        {
             label: !p.isOpen
                 ? 'Create Database… (connect first)'
                 : (p.restricted ? 'Create Database… (connection is restricted to one database)' : 'Create Database…'),

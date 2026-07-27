@@ -84,7 +84,7 @@ export default {
         // `exec()`, so electron-builder often packed extraResources before
         // php.js finished (or never ran it: wrong cwd). Linux AppImage/.deb
         // then shipped without resources/build/php/php and crashed on launch.
-        // Resolve php.js from this config file's directory — electron-builder's
+        // Resolve php.js from this config file's directory; electron-builder's
         // process.cwd() is often the Laravel app root, not the electron package.
         const phpJs = join(electronDir, 'php.js');
         console.log(`  • building php binary - node ${phpJs} --${targetOs} --${arch}`);

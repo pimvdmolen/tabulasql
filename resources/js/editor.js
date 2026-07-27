@@ -5,7 +5,30 @@ import { sql, MySQL } from '@codemirror/lang-sql';
 import { oneDark } from '@codemirror/theme-one-dark';
 
 const lightTheme = EditorView.theme({
-    '&': { backgroundColor: 'transparent' },
+    '&': {
+        backgroundColor: 'var(--ui-surface)',
+        color: 'var(--ui-text-body)',
+    },
+    '.cm-content': {
+        caretColor: 'var(--ui-text-strong)',
+    },
+    '&.cm-focused .cm-cursor': {
+        borderLeftColor: 'var(--ui-text-strong)',
+    },
+    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
+        backgroundColor: 'color-mix(in oklab, var(--color-sky-500) 28%, transparent)',
+    },
+    '.cm-gutters': {
+        backgroundColor: 'var(--ui-chrome)',
+        color: 'var(--ui-text-muted)',
+        borderRight: '1px solid var(--ui-edge)',
+    },
+    '.cm-activeLineGutter': {
+        backgroundColor: 'var(--ui-raised)',
+    },
+    '.cm-activeLine': {
+        backgroundColor: 'color-mix(in oklab, var(--ui-raised) 70%, transparent)',
+    },
 });
 
 /**

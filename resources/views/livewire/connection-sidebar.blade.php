@@ -4,19 +4,19 @@
         <span class="flex gap-0.5">
             <button
                 wire:click="$dispatch('open-import-connections')"
-                class="rounded px-1.5 py-0.5 text-sm text-dim hover:bg-raised hover:text-body"
+                class="rounded px-1.5 py-0.5 text-dim hover:bg-raised hover:text-body"
                 title="Import connections"
-            >⇓</button>
+            ><x-icon name="download" class="size-3.5" /></button>
             <button
                 wire:click="$dispatch('open-export-connections')"
-                class="rounded px-1.5 py-0.5 text-sm text-dim hover:bg-raised hover:text-body"
+                class="rounded px-1.5 py-0.5 text-dim hover:bg-raised hover:text-body"
                 title="Export connections"
-            >⇑</button>
+            ><x-icon name="upload" class="size-3.5" /></button>
             <button
                 wire:click="$dispatch('create-connection')"
-                class="rounded px-2 py-0.5 text-base leading-none text-dim hover:bg-raised hover:text-body"
+                class="rounded px-1.5 py-0.5 text-dim hover:bg-raised hover:text-body"
                 title="New connection"
-            >+</button>
+            ><x-icon name="plus" class="size-3.5" /></button>
         </span>
     </div>
     <div class="min-h-0 flex-1 overflow-y-auto p-1">
@@ -27,10 +27,7 @@
             @endphp
             <div
                 wire:key="conn-{{ $connection->id }}"
-                @if ($isOpen)
-                    wire:click="openConnection({{ $connection->id }})"
-                @endif
-                wire:dblclick="openConnection({{ $connection->id }})"
+                wire:click="openConnection({{ $connection->id }})"
                 wire:loading.class="opacity-60 pointer-events-none"
                 wire:target="openConnection({{ $connection->id }})"
                 x-on:contextmenu.prevent="$store.ctx.open($event, window.treeConnectionMenu($wire, { connectionId: {{ $connection->id }}, isOpen: {{ $isOpen ? 'true' : 'false' }}, restricted: {{ filled($connection->database) ? 'true' : 'false' }} }))"
@@ -38,7 +35,7 @@
                     {{ $isActive
                         ? 'bg-sky-500/20 font-medium text-strong'
                         : ($isOpen ? 'text-strong hover:bg-raised' : 'text-body hover:bg-raised') }}"
-                title="{{ $isOpen ? ($isActive ? 'Active connection' : 'Connected, click to show') : 'Double-click to connect' }}"
+                title="{{ $isOpen ? ($isActive ? 'Active connection' : 'Connected; click to show') : 'Click to connect' }}"
             >
                 <span wire:loading.remove wire:target="openConnection({{ $connection->id }})" class="size-2 shrink-0 rounded-full" style="background: {{ $connection->color ?? '#64748b' }}"></span>
                 <span wire:loading wire:target="openConnection({{ $connection->id }})" class="size-2 shrink-0 animate-spin rounded-full border-2 border-sky-500 border-t-transparent"></span>
@@ -49,22 +46,27 @@
                 @endif
                 <span class="hidden shrink-0 gap-0.5 group-hover:flex">
                     <button
+                        x-on:click.stop="$wire.duplicateConnection({{ $connection->id }})"
+                        class="rounded px-1 text-muted hover:bg-overlay hover:text-body"
+                        title="Duplicate"
+                    ><x-icon name="copy" class="size-3.5" /></button>
+                    <button
                         x-on:click.stop="$wire.$dispatch('edit-connection', { id: {{ $connection->id }} })"
-                        class="rounded px-1 text-[0.78rem] text-muted hover:bg-overlay hover:text-body"
+                        class="rounded px-1 text-muted hover:bg-overlay hover:text-body"
                         title="Edit"
-                    >✎</button>
+                    ><x-icon name="pencil" class="size-3.5" /></button>
                     @if ($isOpen)
                         <button
                             x-on:click.stop="$wire.$dispatch('close-connection', { id: {{ $connection->id }} })"
-                            class="rounded px-1 text-[0.78rem] text-muted hover:bg-overlay hover:text-body"
+                            class="rounded px-1 text-muted hover:bg-overlay hover:text-body"
                             title="Close connection"
-                        >✕</button>
+                        ><x-icon name="x" class="size-3.5" /></button>
                     @else
                         <button
                             x-on:click.stop="$wire.confirmDelete({{ $connection->id }})"
-                            class="rounded px-1 text-[0.78rem] text-muted hover:bg-overlay hover:text-red-600 dark:text-red-400"
+                            class="rounded px-1 text-muted hover:bg-overlay hover:text-red-600 dark:hover:text-red-400"
                             title="Delete"
-                        >🗑</button>
+                        ><x-icon name="trash" class="size-3.5" /></button>
                     @endif
                 </span>
             </div>
@@ -75,10 +77,9 @@
         @endforelse
     </div>
 
-    {{-- Delete confirmation --}}
     @if ($confirmingDeleteId !== null)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div class="w-80 rounded-lg border border-edge bg-surface p-4 shadow-xl">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60" wire:click="$set('confirmingDeleteId', null)">
+            <div class="w-80 rounded-lg border border-edge bg-surface p-4 shadow-xl" wire:click.stop>
                 <h3 class="mb-2 text-sm font-semibold text-strong">Delete connection?</h3>
                 <p class="mb-4 text-[0.78rem] text-dim">
                     This removes the saved connection. The database itself is not touched.

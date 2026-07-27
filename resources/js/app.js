@@ -33,7 +33,7 @@ function writeSplitterSize(key, size) {
     try {
         localStorage.setItem(splitterStorageKey(key), String(size));
     } catch {
-        // Private mode / quota — ignore.
+        // Private mode / quota; ignore.
     }
 }
 
@@ -86,6 +86,24 @@ document.addEventListener('alpine:init', () => {
     window.Alpine.data('resizableColumns', () => ({
         widths: {},
         fitted: false,
+        // Instant row highlight (no Livewire round-trip).
+        focusedRow: null,
+
+        focusRow(index) {
+            this.focusedRow = index;
+        },
+
+        rowHighlightClass(index, selected) {
+            if (this.focusedRow === index) {
+                return 'bg-sky-500/20 hover:bg-sky-500/20';
+            }
+
+            if (selected) {
+                return 'bg-sky-500/10 hover:bg-sky-500/15';
+            }
+
+            return 'hover:bg-raised/50';
+        },
 
         startResize(name, event, th) {
             const startX = event.clientX;
@@ -145,7 +163,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         // Size every column to its widest cell content (header or body).
-        // Only wired from the checkbox-column handle — not from data columns.
+        // Only wired from the checkbox-column handle; not from data columns.
         autoFitAll() {
             const table = this.$el;
             const sample = table.querySelector('tbody td') ?? table.querySelector('thead [data-col]');

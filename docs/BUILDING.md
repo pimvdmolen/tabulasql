@@ -26,7 +26,7 @@ Linux works with Wine, macOS requires a Mac).
 Before building:
 
 1. Bump `version` in `config/nativephp.php` (or set `NATIVEPHP_APP_VERSION`).
-2. Set a real `app_id` (`NATIVEPHP_APP_ID`) — reverse-DNS, stable across
+2. Set a real `app_id` (`NATIVEPHP_APP_ID`); reverse-DNS, stable across
    releases.
 3. Make sure `.env` does not contain development secrets: NativePHP bundles
    the environment file according to the `cleanup_env_keys` /
@@ -76,7 +76,7 @@ maintained, correct version of the file lives in
 `resources/nativephp-patches/electron-main-index.js` (tracked in git), and
 `composer.json`'s `post-install-cmd`/`post-update-cmd` hooks run
 `php artisan native:patch-electron` right after `native:install` to copy it
-back into place automatically — nothing manual needed on a normal
+back into place automatically; nothing manual needed on a normal
 `composer install`. If you ever need to reapply it by hand (e.g. after
 running `native:install` directly, outside of Composer's lifecycle), just
 run:
@@ -84,7 +84,7 @@ run:
 php artisan native:patch-electron
 ```
 To change either fix going forward, edit
-`resources/nativephp-patches/electron-main-index.js` (not the vendor copy —
+`resources/nativephp-patches/electron-main-index.js` (not the vendor copy ;
 that gets overwritten).
 
 ## CI notes
@@ -94,10 +94,10 @@ that gets overwritten).
 (x64), running on push to `main`, on pull requests, and attaching installers
 to a GitHub Release when one is published.
 
-- **The bundled PHP runtime needs replacing — this is not optional.**
+- **The bundled PHP runtime needs replacing; this is not optional.**
   `nativephp/php-bin` (the package NativePHP normally downloads its bundled
   PHP from for the shipped app) is built **without `pdo_mysql` or `sodium`**
-  — confirmed by extracting it and checking `php-extensions.txt` directly.
+ ; confirmed by extracting it and checking `php-extensions.txt` directly.
   Since this app connects to MySQL/MariaDB and encrypts connection exports
   with sodium, a build using the default bundled PHP would install fine and
   then fail with "could not find driver" the moment anyone tries to connect,
@@ -116,7 +116,7 @@ to a GitHub Release when one is published.
   directory; no extra build steps needed.
 - Code signing: provide the usual Electron env vars (`CSC_LINK`,
   `CSC_KEY_PASSWORD`, notarization credentials on macOS). Unsigned builds work
-  for local testing but trip OS gatekeepers — the workflow doesn't attempt
+  for local testing but trip OS gatekeepers; the workflow doesn't attempt
   this yet (no certificates configured).
 - SSH tunneling expects `ssh` on the user's PATH at runtime (built-in OpenSSH
   on Windows 10+); password-auth tunnels additionally need `sshpass` on
@@ -124,5 +124,5 @@ to a GitHub Release when one is published.
 - Release asset filenames are intentionally version-free (e.g.
   `TabulaSQL-linux-x64.AppImage`) so a website's download links via
   `github.com/OWNER/REPO/releases/latest/download/<name>` never need
-  updating between releases. Tag releases as `vX.Y.Z` — the workflow derives
+  updating between releases. Tag releases as `vX.Y.Z`; the workflow derives
   `NATIVEPHP_APP_VERSION` from that tag automatically.

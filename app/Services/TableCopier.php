@@ -162,7 +162,7 @@ class TableCopier
         // database instead of recreating itself back in the source. Views
         // always carry it; SHOW CREATE TRIGGER's "SQL Original Statement" is
         // the literal text as submitted, so it does too whenever the
-        // trigger/table were originally qualified — backtick-quoted or bare,
+        // trigger/table were originally qualified; backtick-quoted or bare,
         // hence the regex rather than a plain str_replace on the quoted form.
         if (in_array($type, ['view', 'trigger'], true)) {
             $ddl = preg_replace('/`?'.preg_quote($database, '/').'`?\./', '', $ddl);

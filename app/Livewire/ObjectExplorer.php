@@ -68,6 +68,12 @@ class ObjectExplorer extends Component
                 $this->toggleDatabase($default);
             }
         }
+
+        // Restricted / single-database connections: skip the DB header and
+        // always show tables for the only available database.
+        if (count($this->databases) === 1 && ! in_array($this->databases[0], $this->expandedDatabases, true)) {
+            $this->toggleDatabase($this->databases[0]);
+        }
     }
 
     public function toggleDatabase(string $database): void

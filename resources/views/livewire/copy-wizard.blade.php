@@ -3,9 +3,14 @@
         <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/60" wire:keydown.escape.window="close">
             <div class="flex max-h-[85vh] w-[min(960px,94vw)] flex-col rounded-lg border border-edge bg-surface shadow-xl">
                 <div class="flex items-center justify-between border-b border-edge/60 px-4 py-3">
-                    <h2 class="text-sm font-semibold text-strong">
-                        Copy from `{{ $context['database'] }}`
-                    </h2>
+                    <div>
+                        <div class="text-[0.72rem] font-semibold uppercase tracking-wide text-faint">Source</div>
+                        <h2 class="text-sm font-semibold text-strong">
+                            {{ $context['connectionName'] ?? 'Connection' }}
+                            <span class="font-normal text-dim">/</span>
+                            <span class="font-mono text-sky-700 dark:text-sky-300">{{ $context['database'] }}</span>
+                        </h2>
+                    </div>
                     <button wire:click="close" class="rounded px-1.5 text-muted hover:bg-raised hover:text-body">&times;</button>
                 </div>
 
@@ -23,12 +28,12 @@
                             @php
                                 $groupOrder = ['table' => 'Tables', 'view' => 'Views', 'procedure' => 'Procedures', 'function' => 'Functions', 'trigger' => 'Triggers', 'event' => 'Events'];
                                 $groupIcons = [
-                                    'table' => ['▦', 'text-sky-600/80 dark:text-sky-400/80'],
-                                    'view' => ['👁', 'text-purple-600/80 dark:text-purple-400/80'],
-                                    'procedure' => ['⚙', 'text-emerald-600/80 dark:text-emerald-400/80'],
-                                    'function' => ['ƒ', 'text-emerald-600/80 dark:text-emerald-400/80'],
-                                    'trigger' => ['⚡', 'text-amber-600/80 dark:text-amber-400/80'],
-                                    'event' => ['⏰', 'text-amber-600/80 dark:text-amber-400/80'],
+                                    'table' => ['table', 'text-sky-600/80 dark:text-sky-400/80'],
+                                    'view' => ['eye', 'text-purple-600/80 dark:text-purple-400/80'],
+                                    'procedure' => ['settings', 'text-emerald-600/80 dark:text-emerald-400/80'],
+                                    'function' => ['function', 'text-emerald-600/80 dark:text-emerald-400/80'],
+                                    'trigger' => ['bolt', 'text-amber-600/80 dark:text-amber-400/80'],
+                                    'event' => ['clock', 'text-amber-600/80 dark:text-amber-400/80'],
                                 ];
                                 $groups = collect($context['objects'])->groupBy('type');
                             @endphp
@@ -38,17 +43,18 @@
                                     $names = $objects->pluck('name')->all();
                                     $checkedCount = count(array_intersect($names, $selected));
                                     $isExpanded = ! in_array($type, $collapsedGroups, true);
-                                    [$icon, $iconClass] = $groupIcons[$type] ?? ['▦', 'text-dim'];
+                                    [$icon, $iconClass] = $groupIcons[$type] ?? ['table', 'text-dim'];
                                 @endphp
                                 <div wire:key="cpy-group-{{ $type }}">
                                     <div class="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-raised">
-                                        <button type="button" wire:click="toggleGroupExpanded('{{ $type }}')" class="w-3 shrink-0 text-[0.78rem] text-faint hover:text-body">{{ $isExpanded ? '▾' : '▸' }}</button>
+                                        <button type="button" wire:click="toggleGroupExpanded('{{ $type }}')" class="shrink-0 text-faint hover:text-body">
+                                            <x-icon :name="$isExpanded ? 'chevron-down' : 'chevron-right'" class="size-3" />
+                                        </button>
                                         <input
                                             type="checkbox"
                                             wire:click="toggleGroup('{{ $type }}')"
                                             @checked($names !== [] && $checkedCount === count($names))
                                             @disabled($names === [])
-                                            class="rounded border-edge bg-raised"
                                         >
                                         <button type="button" wire:click="toggleGroupExpanded('{{ $type }}')" class="flex-1 truncate text-left text-[0.72rem] font-semibold uppercase tracking-wide text-dim">
                                             {{ $label }} ({{ $checkedCount }}/{{ count($names) }})
@@ -58,8 +64,8 @@
                                         <div class="ml-4 space-y-0.5 border-l border-grid pl-2">
                                             @forelse ($objects as $object)
                                                 <label class="flex items-center gap-2 rounded px-1 py-0.5 text-sm text-body hover:bg-raised" wire:key="cpy-{{ $object['name'] }}">
-                                                    <input type="checkbox" wire:model.live="selected" value="{{ $object['name'] }}" class="rounded border-edge bg-raised">
-                                                    <span class="{{ $iconClass }}">{{ $icon }}</span>
+                                                    <input type="checkbox" wire:model.live="selected" value="{{ $object['name'] }}">
+                                                    <x-icon :name="$icon" class="size-3.5 {{ $iconClass }}" />
                                                     <span class="truncate">{{ $object['name'] }}</span>
                                                 </label>
                                             @empty
@@ -137,7 +143,7 @@
                                         server's current packet limit
                                         ({{ \App\Exceptions\PacketTooLargeException::human(reset($summary['packetTooLarge'])['current']) }}).
                                         Tabula can raise <code>max_allowed_packet</code> on the target and retry just those
-                                        table(s) — this needs admin rights on the target server.
+                                        table(s); this needs admin rights on the target server.
                                     </p>
                                     <button
                                         wire:click="fixPacketLimitAndRetry"

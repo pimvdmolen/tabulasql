@@ -26,6 +26,35 @@ class ConnectionSidebar extends Component
         $this->dispatch('open-connection', id: $id);
     }
 
+    public function duplicateConnection(int $id): void
+    {
+        $source = Connection::find($id);
+
+        if ($source === null) {
+            return;
+        }
+
+        $copy = $source->replicate();
+        $copy->name = $this->uniqueCopyName($source->name);
+        $copy->save();
+
+        $this->dispatch('connection-saved');
+    }
+
+    private function uniqueCopyName(string $name): string
+    {
+        $base = preg_replace('/ \(copy(?: \d+)?\)$/', '', $name) ?: $name;
+        $candidate = $base.' (copy)';
+        $n = 2;
+
+        while (Connection::where('name', $candidate)->exists()) {
+            $candidate = $base.' (copy '.$n.')';
+            $n++;
+        }
+
+        return $candidate;
+    }
+
     public function confirmDelete(int $id): void
     {
         $this->confirmingDeleteId = $id;

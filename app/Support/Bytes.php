@@ -6,7 +6,7 @@ namespace App\Support;
  * Human-readable byte sizes without the intl PHP extension.
  *
  * Laravel's Number::fileSize() requires intl, which the Windows static PHP
- * build historically omitted — this keeps the grid/record UI working there.
+ * build historically omitted; this keeps the grid/record UI working there.
  */
 final class Bytes
 {

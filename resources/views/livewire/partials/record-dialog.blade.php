@@ -29,7 +29,10 @@
                                 @if ($value === null)
                                     <span class="italic text-faint">(NULL)</span>
                                 @elseif (is_array($value))
-                                    <span class="text-muted">{{ $value['blob'] ? '⬡ binary' : '¶ text' }}, {{ \App\Support\Bytes::format($value['size']) }}</span>
+                                    <span class="inline-flex items-center gap-1 text-muted">
+                                        <x-icon :name="$value['blob'] ? 'file' : 'letter-t'" class="size-3" />
+                                        {{ $value['blob'] ? 'binary' : 'text' }}, {{ \App\Support\Bytes::format($value['size']) }}
+                                    </span>
                                 @else
                                     {{ $value }}
                                 @endif

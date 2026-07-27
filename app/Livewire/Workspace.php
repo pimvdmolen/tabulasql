@@ -14,6 +14,9 @@ class Workspace extends Component
 
     public ?int $activeTabId = null;
 
+    /** @var array<int, int> Remount counter per open connection (forces reconnect). */
+    public array $tabVersions = [];
+
     public function mount(): void
     {
         // Restore the tabs that were open when the app was last used.
@@ -100,11 +103,13 @@ class Workspace extends Component
             app(ConnectionManager::class)->disconnect($connection);
         }
 
+        unset($this->tabVersions[$id]);
+
         $this->persistTabs();
     }
 
     #[On('connection-saved')]
-    public function refreshTabNames(): void
+    public function refreshTabNames(?int $id = null): void
     {
         $names = Connection::whereIn('id', array_column($this->openTabs, 'id'))
             ->get(['id', 'name', 'color'])
@@ -115,6 +120,18 @@ class Workspace extends Component
             'name' => $names[$tab['id']]->name ?? $tab['name'],
             'color' => $names[$tab['id']]->color ?? $tab['color'],
         ], $this->openTabs));
+
+        // Edited connection that is currently open: drop the old session
+        // (PDO + SSH tunnel) and remount the tab so it reconnects fresh.
+        if ($id !== null && collect($this->openTabs)->contains('id', $id)) {
+            $connection = Connection::find($id);
+
+            if ($connection !== null) {
+                app(ConnectionManager::class)->disconnect($connection);
+            }
+
+            $this->tabVersions[$id] = ($this->tabVersions[$id] ?? 0) + 1;
+        }
     }
 
     #[On('connection-deleted')]

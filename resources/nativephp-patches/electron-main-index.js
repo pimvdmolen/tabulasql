@@ -23,7 +23,7 @@ app.commandLine.appendSwitch('in-process-gpu');
 
 // Any link with target="_blank" (or a window.open() call) would otherwise
 // open in a brand new Electron BrowserWindow, complete with its own
-// title/menu bar — confusing for what's meant to be an external web link
+// title/menu bar; confusing for what's meant to be an external web link
 // (e.g. the "buy me a coffee" link). Catch every webContents the app ever
 // creates and send external navigations to the OS's default browser
 // instead. Must be registered before NativePHP.bootstrap() creates the

@@ -96,7 +96,7 @@ class SshTunnel
         // kills its child as soon as the object goes out of scope, which here
         // is the moment this request ends. Since every Livewire request runs
         // in a fresh PHP process, that killed the tunnel after every single
-        // request — defeating the whole point of keeping it alive in between.
+        // request; defeating the whole point of keeping it alive in between.
         // A raw proc_open() resource detaches cleanly: the ssh process
         // survives after this script exits.
         $errFile = tempnam(sys_get_temp_dir(), 'tabula-ssh-tunnel-');

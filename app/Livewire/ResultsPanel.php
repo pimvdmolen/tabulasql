@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Connection;
+use App\Models\Setting;
 use App\Services\DataEditor;
 use App\Services\FilterBuilder;
 use App\Services\QueryRunner;
@@ -20,7 +21,10 @@ class ResultsPanel extends Component
     #[Locked]
     public int $connectionId;
 
-    public string $activeTab = 'messages';
+    public string $activeTab = 'data';
+
+    /** @var string[] Ordered result chrome tabs. */
+    public array $tabOrder = ['data', 'info', 'messages'];
 
     /** 'table' = browsing a table, 'query' = showing an editor resultset. */
     public string $mode = 'table';
@@ -65,7 +69,7 @@ class ResultsPanel extends Component
     /** @var ?array{row: int, col: string} */
     public ?array $editingCell = null;
 
-    /** @var int[] */
+    /** @var int[]|string[] */
     public array $selectedRows = [];
 
     public bool $showInsertDialog = false;
@@ -74,13 +78,131 @@ class ResultsPanel extends Component
 
     public bool $confirmingDelete = false;
 
+    public bool $safeMode = false;
+
+    /** @var ?array{action: string, title: string, sql: string} */
+    public ?array $pendingSafeAction = null;
+
     // FK drill-down dialog: a stack of records for nested navigation.
     /** @var array<int, array{database: string, table: string, row: array, relation: ?string, convention: bool}> */
     public array $recordStack = [];
 
     public function mount(): void
     {
+        $this->tabOrder = $this->normalizeTabOrder(Setting::get('result_tab_order', ['data', 'info', 'messages']));
+        $this->activeTab = $this->tabOrder[0] ?? 'data';
+        $this->safeMode = (bool) Setting::get('safe_mode', false);
         $this->log('info', 'Session started.');
+    }
+
+    #[On('safe-mode-changed')]
+    public function onSafeModeChanged(bool $enabled): void
+    {
+        $this->safeMode = $enabled;
+    }
+
+    /**
+     * @param  mixed  $order
+     * @return string[]
+     */
+    private function normalizeTabOrder(mixed $order): array
+    {
+        $defaults = ['data', 'info', 'messages'];
+        $labels = array_flip($defaults);
+
+        if (! is_array($order)) {
+            return $defaults;
+        }
+
+        $clean = array_values(array_filter($order, fn ($key) => isset($labels[$key])));
+
+        foreach ($defaults as $key) {
+            if (! in_array($key, $clean, true)) {
+                $clean[] = $key;
+            }
+        }
+
+        return $clean;
+    }
+
+    public function moveTab(string $key, string $direction): void
+    {
+        $index = array_search($key, $this->tabOrder, true);
+
+        if ($index === false) {
+            return;
+        }
+
+        $swapWith = $direction === 'left' ? $index - 1 : $index + 1;
+
+        if ($swapWith < 0 || $swapWith >= count($this->tabOrder)) {
+            return;
+        }
+
+        [$this->tabOrder[$index], $this->tabOrder[$swapWith]] = [$this->tabOrder[$swapWith], $this->tabOrder[$index]];
+        Setting::set('result_tab_order', $this->tabOrder);
+    }
+
+    public function selectAllRows(): void
+    {
+        $result = $this->gridResult;
+
+        if ($result === null || ! ($result['ok'] ?? false) || ! $this->isEditable()) {
+            return;
+        }
+
+        // String keys so they match wire:model checkbox values.
+        $this->selectedRows = array_map(
+            static fn ($index) => (string) $index,
+            array_keys($result['rows'] ?? [])
+        );
+    }
+
+    public function clearRowSelection(): void
+    {
+        $this->selectedRows = [];
+    }
+
+    public function toggleSelectAllRows(): void
+    {
+        $result = $this->gridResult;
+        $rowCount = count($result['rows'] ?? []);
+
+        if ($rowCount > 0 && count($this->selectedRows) === $rowCount) {
+            $this->clearRowSelection();
+
+            return;
+        }
+
+        $this->selectAllRows();
+    }
+
+    public function toggleRowSelection(int $row, bool $shift = false): void
+    {
+        if (! $this->isEditable()) {
+            return;
+        }
+
+        $rowKey = (string) $row;
+
+        if ($shift && $this->selectedRows !== []) {
+            $anchor = (int) end($this->selectedRows);
+            $from = min($anchor, $row);
+            $to = max($anchor, $row);
+            $range = array_map(static fn ($index) => (string) $index, range($from, $to));
+            $this->selectedRows = array_values(array_unique([...$this->selectedRows, ...$range]));
+
+            return;
+        }
+
+        if (in_array($rowKey, $this->selectedRows, true) || in_array($row, $this->selectedRows, false)) {
+            $this->selectedRows = array_values(array_filter(
+                $this->selectedRows,
+                static fn ($value) => (string) $value !== $rowKey
+            ));
+        } else {
+            $this->selectedRows[] = $rowKey;
+        }
     }
 
     // ------------------------------------------------------------------
@@ -365,6 +487,29 @@ class ResultsPanel extends Component
             return;
         }
 
+        if ($this->safeMode && $this->pendingSafeAction === null) {
+            $statements = [];
+
+            foreach ($this->pendingEdits as $row => $changes) {
+                $sets = [];
+                foreach ($changes as $column => $value) {
+                    $sets[] = '`'.$column.'` = '.($value === DataEditor::DEFAULT ? 'DEFAULT' : $this->sqlLiteral($value));
+                }
+                $pk = $this->primaryKeyValues((int) $row);
+                $where = collect($pk)->map(fn ($v, $k) => '`'.$k.'` = '.$this->sqlLiteral($v))->implode(' AND ');
+                $statements[] = 'UPDATE `'.$this->database.'`.`'.$this->table.'` SET '.implode(', ', $sets).' WHERE '.$where.' LIMIT 1;';
+            }
+
+            $this->pendingSafeAction = [
+                'action' => 'save',
+                'title' => 'Confirm save ('.count($this->pendingEdits).' row(s))',
+                'sql' => implode("\n", $statements),
+            ];
+
+            return;
+        }
+
+        $this->pendingSafeAction = null;
         $editor = app(DataEditor::class);
         $saved = 0;
         $failed = 0;
@@ -403,6 +548,20 @@ class ResultsPanel extends Component
     {
         $values = array_filter($this->insertValues, fn ($value) => $value !== null && $value !== '');
 
+        if ($this->safeMode && $this->pendingSafeAction === null) {
+            $columns = array_keys($values);
+            $literals = array_map(fn ($value) => $this->sqlLiteral($value), array_values($values));
+            $this->pendingSafeAction = [
+                'action' => 'insert',
+                'title' => 'Confirm insert',
+                'sql' => 'INSERT INTO `'.$this->database.'`.`'.$this->table.'` (`'.implode('`, `', $columns).'`) VALUES ('.implode(', ', $literals).');',
+            ];
+
+            return;
+        }
+
+        $this->pendingSafeAction = null;
+
         try {
             app(DataEditor::class)->insert($this->connection(), $this->database, $this->table, $values);
             $this->log('success', 'Row inserted.');
@@ -434,6 +593,22 @@ class ResultsPanel extends Component
 
     public function duplicateRow(int $row): void
     {
+        if ($this->safeMode && $this->pendingSafeAction === null) {
+            $pk = $this->primaryKeyValues($row);
+            $where = collect($pk)->map(fn ($v, $k) => '`'.$k.'` = '.$this->sqlLiteral($v))->implode(' AND ');
+            $this->pendingSafeAction = [
+                'action' => 'duplicate',
+                'title' => 'Confirm duplicate row',
+                'sql' => '-- Duplicate row matching: '.$where."\n".'INSERT INTO `'.$this->database.'`.`'.$this->table.'` SELECT … (auto-increment columns regenerated)',
+                'row' => $row,
+            ];
+
+            return;
+        }
+
+        $row = (int) ($this->pendingSafeAction['row'] ?? $row);
+        $this->pendingSafeAction = null;
+
         try {
             app(DataEditor::class)->duplicate(
                 $this->connection(), $this->database, $this->table,
@@ -448,14 +623,34 @@ class ResultsPanel extends Component
 
     public function confirmDeleteRows(): void
     {
-        if ($this->selectedRows !== []) {
-            $this->confirmingDelete = true;
+        if ($this->selectedRows === []) {
+            return;
         }
+
+        if ($this->safeMode && $this->pendingSafeAction === null) {
+            $statements = [];
+            foreach ($this->selectedRows as $row) {
+                $pk = $this->primaryKeyValues((int) $row);
+                $where = collect($pk)->map(fn ($v, $k) => '`'.$k.'` = '.$this->sqlLiteral($v))->implode(' AND ');
+                $statements[] = 'DELETE FROM `'.$this->database.'`.`'.$this->table.'` WHERE '.$where.' LIMIT 1;';
+            }
+
+            $this->pendingSafeAction = [
+                'action' => 'delete',
+                'title' => 'Confirm delete ('.count($this->selectedRows).' row(s))',
+                'sql' => implode("\n", $statements),
+            ];
+
+            return;
+        }
+
+        $this->confirmingDelete = true;
     }
 
     public function deleteSelectedRows(): void
     {
         $this->confirmingDelete = false;
+        $this->pendingSafeAction = null;
 
         try {
             $keys = array_map(fn ($row) => $this->primaryKeyValues((int) $row), $this->selectedRows);
@@ -467,6 +662,41 @@ class ResultsPanel extends Component
 
         $this->resetEditing();
         $this->invalidateGrid();
+    }
+
+    public function confirmSafeAction(): void
+    {
+        $action = $this->pendingSafeAction['action'] ?? null;
+
+        match ($action) {
+            'save' => $this->saveChanges(),
+            'insert' => $this->saveInsert(),
+            'delete' => $this->deleteSelectedRows(),
+            'duplicate' => $this->duplicateRow((int) ($this->pendingSafeAction['row'] ?? 0)),
+            default => $this->pendingSafeAction = null,
+        };
+    }
+
+    public function cancelSafeAction(): void
+    {
+        $this->pendingSafeAction = null;
+    }
+
+    private function sqlLiteral(mixed $value): string
+    {
+        if ($value === null) {
+            return 'NULL';
+        }
+
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+
+        return "'".str_replace(["\\", "'"], ["\\\\", "\\'"], (string) $value)."'";
     }
 
     // ------------------------------------------------------------------

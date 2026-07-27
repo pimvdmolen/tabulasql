@@ -2,10 +2,10 @@
 
 /**
  * Downloads a portable static-php-cli PHP CLI build (built with pdo_mysql
- * and sodium — the ones nativephp/php-bin's own bundled binary lacks, which
+ * and sodium; the ones nativephp/php-bin's own bundled binary lacks, which
  * breaks both MySQL connections and encrypted connection export/import),
  * verifies the extensions this app actually needs, and repackages it as
- * bin/{os}/{arch}/php-{majorMinor}.zip — the exact layout NativePHP's build
+ * bin/{os}/{arch}/php-{majorMinor}.zip; the exact layout NativePHP's build
  * tooling (php.js) expects under a custom NATIVEPHP_PHP_BINARY_PATH.
  *
  * Used for Linux/macOS "bulk" prebuilds in CI. Windows cannot use the
@@ -13,7 +13,7 @@
  * scripts/ci/build-windows-static-php.ps1 instead.
  *
  * Runs on the matching OS in CI, so the downloaded binary can always be
- * executed directly here to verify it — no cross-platform guessing.
+ * executed directly here to verify it; no cross-platform guessing.
  *
  * Usage:
  *   php fetch-static-php.php <archiveUrl> <tar.gz|zip> <linux|mac|win> <x64|arm64> <majorMinorVersion> <destBaseDir>

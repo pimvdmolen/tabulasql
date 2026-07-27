@@ -160,7 +160,7 @@ it('lists every object group in the copy wizard, including empty ones', function
 it('expands and collapses a group in the copy wizard tree', function () {
     // "bump_qty" alone also shows up in the "select all" button's JSON
     // payload regardless of collapse state, so assert on the row's own
-    // wire:key instead — that only renders while the group is expanded.
+    // wire:key instead; that only renders while the group is expanded.
     Livewire::test(CopyWizard::class)
         ->dispatch('open-copy-wizard', connectionId: $this->connection->id, database: 'routines_test', objects: [
             ['name' => 'widgets', 'type' => 'table'],

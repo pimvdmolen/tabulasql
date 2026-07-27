@@ -13,9 +13,12 @@ class SidebarFooter extends Component
 
     public bool $showThemeDialog = false;
 
+    public bool $safeMode = false;
+
     public function mount(): void
     {
         $this->theme = Setting::get('theme', 'auto');
+        $this->safeMode = (bool) Setting::get('safe_mode', false);
     }
 
     public function setTheme(string $theme): void
@@ -26,6 +29,13 @@ class SidebarFooter extends Component
 
         $this->theme = $theme;
         Setting::set('theme', $theme);
+    }
+
+    public function toggleSafeMode(): void
+    {
+        $this->safeMode = ! $this->safeMode;
+        Setting::set('safe_mode', $this->safeMode);
+        $this->dispatch('safe-mode-changed', enabled: $this->safeMode);
     }
 
     public function render()

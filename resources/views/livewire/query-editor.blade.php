@@ -1,16 +1,16 @@
 <div class="relative flex h-full min-h-0 flex-col">
     {{-- Query tab bar + toolbar --}}
-    <div class="flex h-8 shrink-0 items-end border-b border-edge/60 bg-chrome px-1">
-        <div class="flex min-w-0 items-end gap-px overflow-x-auto">
+    <div class="flex h-8 shrink-0 items-stretch border-b border-edge/60 bg-chrome px-1">
+        <div class="flex min-w-0 items-stretch gap-px overflow-x-auto">
             @foreach ($tabs as $tab)
                 <div
                     wire:key="qtab-{{ $tab['id'] }}"
-                    class="group flex h-7 shrink-0 items-center rounded-t border-t-2
+                    class="group flex h-full shrink-0 items-center border-t-2
                         {{ $activeTab === $tab['id']
                             ? 'border-sky-500 bg-surface text-body'
                             : 'border-transparent text-muted hover:text-body' }}"
                 >
-                    <button wire:click="activateTab({{ $tab['id'] }})" class="h-full pl-3 pr-1 text-[0.78rem]">{{ $tab['title'] }}</button>
+                    <button wire:click="activateTab({{ $tab['id'] }})" class="flex h-full items-center px-3 text-[0.78rem]">{{ $tab['title'] }}</button>
                     @if (count($tabs) > 1)
                         <button
                             wire:click="closeTab({{ $tab['id'] }})"
@@ -19,29 +19,31 @@
                     @endif
                 </div>
             @endforeach
-            <button wire:click="addTab" class="h-7 shrink-0 px-2 text-sm text-muted hover:text-body" title="New query tab">+</button>
+            <button wire:click="addTab" class="flex h-full shrink-0 items-center px-2 text-muted hover:text-body" title="New query tab">
+                <x-icon name="plus" class="size-3.5" />
+            </button>
         </div>
 
-        <div class="ml-auto flex shrink-0 items-center gap-1 pb-1 pl-2 text-[0.78rem]">
+        <div class="ml-auto flex shrink-0 items-center gap-1 pl-2 text-[0.78rem]">
             <button
                 x-on:click="window.dispatchEvent(new CustomEvent('sql-run', { detail: { connectionId: {{ $connectionId }}, tabId: {{ $activeTab }}, action: 'run' } }))"
-                class="rounded bg-sky-600 px-2.5 py-0.5 font-medium text-white hover:bg-sky-500"
+                class="inline-flex items-center gap-1 rounded bg-sky-600 px-2.5 py-0.5 font-medium text-white hover:bg-sky-500"
                 title="Run (Ctrl+Enter)"
-            >▶ Run</button>
+            ><x-icon name="play" class="size-3.5" /> Run</button>
             <button
                 x-on:click="window.dispatchEvent(new CustomEvent('sql-run', { detail: { connectionId: {{ $connectionId }}, tabId: {{ $activeTab }}, action: 'explain' } }))"
                 class="rounded border border-edge px-2 py-0.5 text-dim hover:bg-raised hover:text-body"
                 title="EXPLAIN the first statement"
             >Explain</button>
             <label class="flex items-center gap-1 px-1 text-muted" title="Add LIMIT 1000 to unlimited SELECTs">
-                <input type="checkbox" wire:model.live="limitResults" class="size-3 rounded border-edge bg-raised">
+                <input type="checkbox" wire:model.live="limitResults">
                 Limit
             </label>
             <button
                 wire:click="$toggle('showHistory')"
-                class="rounded border border-edge px-2 py-0.5 {{ $showHistory ? 'bg-raised text-body' : 'text-dim hover:bg-raised hover:text-body' }}"
+                class="inline-flex items-center rounded border border-edge px-2 py-0.5 {{ $showHistory ? 'bg-raised text-body' : 'text-dim hover:bg-raised hover:text-body' }}"
                 title="Query history"
-            >🕒</button>
+            ><x-icon name="history" class="size-3.5" /></button>
         </div>
     </div>
 

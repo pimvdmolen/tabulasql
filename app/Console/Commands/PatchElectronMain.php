@@ -13,7 +13,7 @@ use Illuminate\Console\Command;
  * - php.js: extracts the bundled PHP binary via the system `unzip` CLI
  *   instead of the bundled `yauzl` JS library, which has a reproducible
  *   silent-stall bug when this script runs as a descendant of PHP's Process
- *   runner (proc_open) — every `native:build`/`native:run` invocation.
+ *   runner (proc_open); every `native:build`/`native:run` invocation.
  * - electron-builder.mjs: wait for php.js in beforePack (stock uses async
  *   exec without await, so CI Linux builds often shipped without PHP).
  *

@@ -27,11 +27,15 @@
 
         {{-- Toolbar --}}
         <div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-grid px-2 py-1 text-[0.78rem] text-dim">
-            <button wire:click="openFilterDialog" class="rounded border border-edge px-2 py-0.5 hover:bg-raised hover:text-body {{ $filters !== [] ? 'border-sky-500 text-sky-600 dark:text-sky-400' : '' }}" title="Custom filter">⧩ Filter</button>
-            <button wire:click="refresh" class="rounded border border-edge px-2 py-0.5 hover:bg-raised hover:text-body" title="Refresh">⟳</button>
+            <button wire:click="openFilterDialog" class="inline-flex items-center gap-1 rounded border border-edge px-2 py-0.5 hover:bg-raised hover:text-body {{ $filters !== [] ? 'border-sky-500 text-sky-600 dark:text-sky-400' : '' }}" title="Custom filter">
+                <x-icon name="filter" class="size-3.5" /> Filter
+            </button>
+            <button wire:click="refresh" class="inline-flex items-center gap-1 rounded border border-edge px-2 py-0.5 hover:bg-raised hover:text-body" title="Refresh">
+                <x-icon name="refresh" class="size-3.5" />
+            </button>
 
             <label class="flex items-center gap-1.5">
-                <input type="checkbox" wire:model.live="limitRows" class="size-3 rounded border-edge bg-raised">
+                <input type="checkbox" wire:model.live="limitRows">
                 Limit rows
             </label>
             <label class="flex items-center gap-1">
@@ -46,19 +50,29 @@
             </label>
             <div class="flex gap-0.5">
                 <button wire:click="previousPage" @disabled(! $limitRows || $firstRow === 0)
-                    class="rounded border border-edge px-1.5 py-0.5 hover:bg-raised disabled:opacity-40" title="Previous page">◀</button>
+                    class="rounded border border-edge px-1.5 py-0.5 hover:bg-raised disabled:opacity-40" title="Previous page">
+                    <x-icon name="chevron-left" class="size-3.5" />
+                </button>
                 <button wire:click="nextPage" @disabled(! $limitRows || ($result !== null && $result['row_count'] < $rowCount))
-                    class="rounded border border-edge px-1.5 py-0.5 hover:bg-raised disabled:opacity-40" title="Next page">▶</button>
+                    class="rounded border border-edge px-1.5 py-0.5 hover:bg-raised disabled:opacity-40" title="Next page">
+                    <x-icon name="chevron-right" class="size-3.5" />
+                </button>
             </div>
 
             @if ($editable)
                 <span class="h-4 w-px bg-edge"></span>
-                <button wire:click="openInsertDialog" class="rounded border border-edge px-2 py-0.5 hover:bg-raised hover:text-body {{ $showInsertDialog ? 'bg-raised text-body' : '' }}" title="Insert new row">+ Row</button>
+                <button wire:click="openInsertDialog" class="inline-flex items-center gap-1 rounded border border-edge px-2 py-0.5 hover:bg-raised hover:text-body {{ $showInsertDialog ? 'bg-raised text-body' : '' }}" title="Insert new row">
+                    <x-icon name="plus" class="size-3.5" /> Row
+                </button>
                 @if ($selectedRows !== [])
-                    <button wire:click="confirmDeleteRows" class="rounded border border-red-400 dark:border-red-700 px-2 py-0.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40">🗑 Delete ({{ count($selectedRows) }})</button>
+                    <button wire:click="confirmDeleteRows" class="inline-flex items-center gap-1 rounded border border-red-400 dark:border-red-700 px-2 py-0.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40">
+                        <x-icon name="trash" class="size-3.5" /> Delete ({{ count($selectedRows) }})
+                    </button>
                 @endif
                 @if ($pendingEdits !== [])
-                    <button wire:click="saveChanges" class="rounded bg-emerald-600 px-2.5 py-0.5 font-medium text-white hover:bg-emerald-500">✓ Save Changes ({{ count($pendingEdits) }})</button>
+                    <button wire:click="saveChanges" class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-0.5 font-medium text-white hover:bg-emerald-500">
+                        <x-icon name="check" class="size-3.5" /> Save Changes ({{ count($pendingEdits) }})
+                    </button>
                     <button wire:click="cancelChanges" class="rounded border border-edge px-2 py-0.5 hover:bg-raised hover:text-body">Cancel Changes</button>
                 @endif
             @elseif ($result !== null && $result['ok'])

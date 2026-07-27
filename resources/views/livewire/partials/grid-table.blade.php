@@ -7,6 +7,7 @@
         }
     }
     $fkColumns = $editable || ($mode ?? null) === 'table' ? $this->foreignKeys : [];
+    $selectedLookup = array_fill_keys(array_map('strval', $selectedRows ?? []), true);
 @endphp
 <table
     wire:key="{{ $gridKey ?? 'grid' }}"
@@ -25,7 +26,18 @@
     <thead class="sticky top-0 z-10 bg-chrome">
         <tr>
             @if ($editable)
-                <th class="relative w-8 border border-edge/60 px-1 py-1">
+                <th class="relative w-8 border border-edge/60 px-1 py-1 text-center">
+                    @php
+                        $allSelected = count($result['rows']) > 0
+                            && count($selectedRows) === count($result['rows']);
+                    @endphp
+                    <input
+                        type="checkbox"
+                        wire:key="select-all-{{ $version }}-{{ count($selectedRows) }}-{{ count($result['rows']) }}"
+                        wire:click.prevent="toggleSelectAllRows"
+                        @checked($allSelected)
+                        title="Select all rows"
+                    >
                     <span
                         x-on:dblclick.stop.prevent="autoFitAll()"
                         x-on:mousedown.stop
@@ -45,7 +57,7 @@
                     >
                         {{ $column }}
                         @if ($sortable && $sortColumn === $column)
-                            <span class="text-sky-600 dark:text-sky-400">{{ $sortDirection === 'asc' ? '▲' : '▼' }}</span>
+                            <x-icon :name="$sortDirection === 'asc' ? 'sort-asc' : 'sort-desc'" class="ml-0.5 inline size-3 text-sky-600 dark:text-sky-400" />
                         @endif
                     </span>
                     <span
@@ -60,10 +72,21 @@
     </thead>
     <tbody>
         @foreach ($result['rows'] as $rowIndex => $row)
-            <tr class="hover:bg-raised/50" wire:key="row-{{ $version }}-{{ $rowIndex }}">
+            <tr
+                wire:key="row-{{ $version }}-{{ $rowIndex }}"
+                @if (($mode ?? null) === 'table')
+                    x-on:click="focusRow({{ $rowIndex }})"
+                @endif
+                :class="rowHighlightClass({{ $rowIndex }}, {{ isset($selectedLookup[(string) $rowIndex]) ? 'true' : 'false' }})"
+            >
                 @if ($editable)
-                    <td class="border border-grid px-1 py-0.5 text-center">
-                        <input type="checkbox" wire:model.live="selectedRows" value="{{ $rowIndex }}" class="size-3 rounded border-edge bg-raised">
+                    <td class="border border-grid px-1 py-0.5 text-center" wire:click.stop>
+                        <input
+                            type="checkbox"
+                            wire:model.live="selectedRows"
+                            value="{{ $rowIndex }}"
+                            x-on:click="if ($event.shiftKey) { $event.preventDefault(); $wire.toggleRowSelection({{ $rowIndex }}, true); }"
+                        >
                     </td>
                 @endif
                 @foreach ($result['columns'] as $column)
@@ -75,7 +98,7 @@
                         $isFk = isset($fkColumns[$column]);
                     @endphp
                     <td
-                        @if ($editable && ! is_array($value)) wire:dblclick="startEdit({{ $rowIndex }}, @js($column))" @endif
+                        @if ($editable && ! is_array($value)) wire:dblclick.stop="startEdit({{ $rowIndex }}, @js($column))" @endif
                         @if (($mode ?? null) === 'table')
                             x-on:contextmenu.prevent="$store.ctx.open($event, window.gridCellMenu($wire, {
                                 row: {{ $rowIndex }},
@@ -88,17 +111,18 @@
                                 sorted: @js($sortColumn !== null),
                             }))"
                         @endif
-                        class="group/cell relative max-w-md truncate whitespace-nowrap border border-grid px-2 py-0.5 select-text
+                        class="group/cell relative max-w-md cursor-default truncate whitespace-nowrap border border-grid px-2 py-0.5 select-text
                             {{ $hasPending ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300' : 'text-body' }}"
                     >
                         @if ($isEditing)
                             @php [$inputType, $options] = $this->inputTypeFor($columnMeta[$column]['type'] ?? 'text'); @endphp
                             @if ($inputType === 'enum')
                                 <select
-                                    x-init="$el.focus()"
+                                    x-init="$nextTick(() => $el.focus())"
                                     x-on:change="$wire.setCellValue({{ $rowIndex }}, @js($column), $event.target.value)"
                                     x-on:keydown.escape="$wire.cancelEditCell()"
-                                    class="w-full border border-sky-500 bg-surface px-1 py-0 text-body focus:outline-none"
+                                    x-on:click.stop
+                                    class="cell-editor border border-sky-500 bg-surface px-1 py-0 text-body focus:outline-none"
                                 >
                                     <option value="" @selected($value === null)></option>
                                     @foreach ($options as $option)
@@ -109,11 +133,14 @@
                                 <input
                                     type="{{ $inputType }}"
                                     value="{{ $inputType === 'datetime-local' ? str_replace(' ', 'T', (string) $value) : $value }}"
-                                    x-init="$el.focus(); $el.select && $el.select()"
-                                    x-on:keydown.enter="$wire.setCellValue({{ $rowIndex }}, @js($column), $event.target.value.replace('T', ' '))"
+                                    data-datetime="{{ $inputType === 'datetime-local' ? '1' : '0' }}"
+                                    x-init="$nextTick(() => { $el.focus(); if ($el.dataset.datetime !== '1') $el.select?.(); })"
+                                    x-on:keydown.enter="$wire.setCellValue({{ $rowIndex }}, @js($column), $el.dataset.datetime === '1' ? $event.target.value.replace('T', ' ') : $event.target.value)"
                                     x-on:keydown.escape.stop="$wire.cancelEditCell()"
-                                    x-on:blur="$wire.setCellValue({{ $rowIndex }}, @js($column), $event.target.value.replace('T', ' '))"
-                                    class="w-full min-w-32 border border-sky-500 bg-surface px-1 py-0 text-body focus:outline-none"
+                                    x-on:blur="$wire.setCellValue({{ $rowIndex }}, @js($column), $el.dataset.datetime === '1' ? $event.target.value.replace('T', ' ') : $event.target.value)"
+                                    x-on:click.stop
+                                    x-on:mousedown.stop
+                                    class="cell-editor border border-sky-500 bg-surface px-1 py-0 text-body focus:outline-none"
                                 >
                             @endif
                         @else
@@ -129,14 +156,15 @@
                                 <span class="italic text-faint">(NULL)</span>
                             @elseif (is_array($value))
                                 <button
-                                    class="cursor-pointer rounded bg-raised px-1.5 py-0.5 text-left text-dim hover:bg-overlay"
-                                    @click="viewer = {
+                                    class="inline-flex cursor-pointer items-center gap-1 rounded bg-raised px-1.5 py-0.5 text-left text-dim hover:bg-overlay"
+                                    @click.stop="viewer = {
                                         title: @js($column.', '.($value['blob'] ? 'binary, ' : '').\App\Support\Bytes::format($value['size'])),
                                         content: @js($value['full']),
                                         note: @js($value['truncated'] ? 'Value truncated to 64 KB for display.' : ($value['blob'] ? 'Hex representation.' : null)),
                                     }"
                                 >
-                                    {{ $value['blob'] ? '⬡' : '¶' }} {{ \App\Support\Bytes::format($value['size']) }}
+                                    <x-icon :name="$value['blob'] ? 'file' : 'letter-t'" class="size-3" />
+                                    {{ \App\Support\Bytes::format($value['size']) }}
                                 </button>
                             @else
                                 {{ $value }}
@@ -144,7 +172,7 @@
 
                             @if ($isFk && $value !== null && ! is_array($value))
                                 <button
-                                    wire:click="showRelated({{ $rowIndex }}, @js($column))"
+                                    wire:click.stop="showRelated({{ $rowIndex }}, @js($column))"
                                     class="absolute right-0.5 top-1/2 hidden -translate-y-1/2 rounded border px-1 text-[0.7rem] group-hover/cell:inline-block
                                         {{ $fkColumns[$column]['convention'] ? 'border-dashed border-edge bg-raised text-muted' : 'border-edge bg-raised text-dim' }} hover:bg-overlay hover:text-body"
                                     title="Show related record in {{ $fkColumns[$column]['table'] }}{{ $fkColumns[$column]['convention'] ? ' (convention match)' : '' }}"

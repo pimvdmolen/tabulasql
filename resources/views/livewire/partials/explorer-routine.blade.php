@@ -8,7 +8,7 @@
     title="{{ $name }}{{ isset($subtitle) ? " on `$subtitle`" : '' }}"
 >
     <span class="w-3 shrink-0"></span>
-    <span class="shrink-0 text-amber-600/80 dark:text-amber-400/80">{{ $icon }}</span>
+    <x-icon :name="$icon" class="size-3.5 shrink-0 text-amber-600/80 dark:text-amber-400/80" />
     <span class="truncate">{{ $name }}</span>
     @isset($subtitle)
         <span class="ml-auto shrink-0 truncate pl-1 text-[0.72rem] text-faint">on `{{ $subtitle }}`</span>

@@ -63,7 +63,7 @@ console.log('PHP version: ' + phpVersion);
  * CLI. Confirmed by direct testing to be immune to a reproducible bug where
  * yauzl's read stream silently stalls partway through (consistently a few
  * hundred KB short, no error, no more data) specifically when this script
- * runs as a descendant of PHP's Process runner (proc_open) — happens
+ * runs as a descendant of PHP's Process runner (proc_open); happens
  * whether launched via `composer native:dev`, `php artisan native:run`
  * directly, with or without a streaming output callback, regardless of
  * process nesting depth. A plain child process doing its own OS-level I/O

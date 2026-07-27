@@ -5,7 +5,7 @@
             @forelse ($openTabs as $tab)
                 <div
                     wire:key="conn-tab-{{ $tab['id'] }}"
-                    class="group flex h-8 items-center rounded-t border-t-2
+                    class="group flex h-8 items-center border-t-2
                         {{ $activeTabId === $tab['id']
                             ? 'border-sky-500 bg-surface text-strong'
                             : 'border-transparent bg-raised/60 text-dim hover:text-body' }}"
@@ -24,11 +24,11 @@
                     >&times;</button>
                 </div>
             @empty
-                <div class="px-3 pb-2 text-[0.78rem] text-muted">No open connections. Double-click a connection to open it.</div>
+                <div class="px-3 pb-2 text-[0.78rem] text-muted">No open connections. Click a connection to open it.</div>
             @endforelse
         </div>
 
-        <div class="ml-2 flex max-w-[min(620px,58vw)] shrink-0 items-center gap-1.5 px-2 py-0.5 text-[0.72rem] leading-snug text-amber-700 dark:text-amber-400">
+        <div class="ml-2 flex max-w-[min(520px,48vw)] shrink-0 items-center gap-1.5 px-2 py-0.5 text-[0.72rem] leading-snug text-amber-700 dark:text-amber-400">
             <a
                 href="https://buymeacoffee.com/pimvdmolen"
                 target="_blank"
@@ -36,7 +36,11 @@
                 class="truncate hover:underline hover:text-amber-600 dark:hover:text-amber-300"
                 title="Buy me a coffee"
             >This software is completely free. Please buy me a coffee for support</a>
-            <span class="shrink-0 text-sm" aria-hidden="true">☕</span>
+            <x-icon name="coffee" class="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+        </div>
+
+        <div class="ml-1 shrink-0 border-l border-edge/60 pl-1">
+            <livewire:sidebar-footer />
         </div>
     </div>
 
@@ -64,14 +68,12 @@
                         wire:key="explorer-wrap-{{ $tab['id'] }}"
                         class="absolute inset-0 {{ $activeTabId === $tab['id'] ? '' : 'hidden' }}"
                     >
-                        <livewire:object-explorer :connection-id="$tab['id']" :key="'explorer-'.$tab['id']" />
+                        <livewire:object-explorer :connection-id="$tab['id']" :key="'explorer-'.$tab['id'].'-'.($tabVersions[$tab['id']] ?? 0)" />
                     </div>
                 @empty
                     <div class="p-3 text-center text-[0.78rem] text-muted">No open connections.</div>
                 @endforelse
             </div>
-
-            <livewire:sidebar-footer />
 
             <div x-bind="handle" class="absolute inset-y-0 -right-0.5 z-10 w-1 cursor-col-resize hover:bg-sky-500/50"></div>
         </div>
@@ -83,14 +85,16 @@
                     wire:key="conn-workspace-{{ $tab['id'] }}"
                     class="absolute inset-0 {{ $activeTabId === $tab['id'] ? '' : 'hidden' }}"
                 >
-                    <livewire:connection-tab :connection-id="$tab['id']" :key="'tab-'.$tab['id']" />
+                    <livewire:connection-tab :connection-id="$tab['id']" :key="'tab-'.$tab['id'].'-'.($tabVersions[$tab['id']] ?? 0)" />
                 </div>
             @empty
                 <div class="flex h-full items-center justify-center text-sm text-faint">
                     <div class="text-center">
-                        <div class="mb-2 text-4xl">🗄</div>
-                        Add a connection with the <span class="mx-1 rounded bg-raised px-1.5">+</span> button,<br>
-                        then double-click it to connect.
+                        <div class="mb-3 flex justify-center text-muted">
+                            <x-icon name="database" class="size-10" />
+                        </div>
+                        Add a connection with the <span class="mx-1 inline-flex rounded bg-raised px-1.5"><x-icon name="plus" class="size-3.5" /></span> button,<br>
+                        then click it to connect.
                     </div>
                 </div>
             @endforelse

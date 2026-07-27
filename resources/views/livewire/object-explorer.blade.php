@@ -18,12 +18,12 @@
             <button
                 wire:click="refresh"
                 wire:loading.attr="disabled"
-                class="shrink-0 rounded border border-edge px-2 text-[0.78rem] text-dim hover:bg-raised hover:text-body"
+                class="shrink-0 rounded border border-edge px-2 text-dim hover:bg-raised hover:text-body"
                 title="Refresh"
-            >⟳</button>
+            ><x-icon name="refresh" class="size-3.5" /></button>
         </div>
         <label class="flex items-center gap-1.5 text-[0.78rem] text-muted">
-            <input type="checkbox" wire:model.live="searchRegex" class="size-3 rounded border-edge bg-raised">
+            <input type="checkbox" wire:model.live="searchRegex">
             Search as Regex
         </label>
     </div>
@@ -34,21 +34,25 @@
             <div class="m-1 rounded border border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/40 p-2 text-[0.78rem] text-red-700 dark:text-red-300">{{ $error }}</div>
         @endif
 
+        @php $singleDatabase = count($databases) === 1; @endphp
+
         @foreach ($databases as $database)
-            @php $isExpanded = in_array($database, $expandedDatabases, true); @endphp
+            @php $isExpanded = $singleDatabase || in_array($database, $expandedDatabases, true); @endphp
             <div wire:key="db-{{ $database }}">
-                <button
-                    wire:click="toggleDatabase(@js($database))"
-                    x-on:contextmenu.prevent="$store.ctx.open($event, window.treeDatabaseMenu($wire, { connectionId: {{ $connectionId }}, database: @js($database) }))"
-                    class="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left hover:bg-raised {{ $activeDatabase === $database ? 'text-sky-700 dark:text-sky-300' : 'text-body' }}"
-                >
-                    <span class="w-3 text-[0.78rem] text-muted">{{ $isExpanded ? '▾' : '▸' }}</span>
-                    <span class="text-amber-500/80">🛢</span>
-                    <span class="truncate">{{ $database }}</span>
-                </button>
+                @unless ($singleDatabase)
+                    <button
+                        wire:click="toggleDatabase(@js($database))"
+                        x-on:contextmenu.prevent="$store.ctx.open($event, window.treeDatabaseMenu($wire, { connectionId: {{ $connectionId }}, database: @js($database) }))"
+                        class="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left hover:bg-raised {{ $activeDatabase === $database ? 'text-sky-700 dark:text-sky-300' : 'text-body' }}"
+                    >
+                        <x-icon :name="$isExpanded ? 'chevron-down' : 'chevron-right'" class="size-3 text-muted" />
+                        <x-icon name="database" class="size-3.5 text-amber-500/80" />
+                        <span class="truncate">{{ $database }}</span>
+                    </button>
+                @endunless
 
                 @if ($isExpanded)
-                    <div class="ml-4 border-l border-grid pl-1">
+                    <div class="{{ $singleDatabase ? '' : 'ml-4 border-l border-grid pl-1' }}">
                         @php
                             $items = $this->filteredTables($database);
                             $tables = array_filter($items, fn ($t) => $t['type'] === 'table');
@@ -72,28 +76,28 @@
                         @if (count($routines['procedures']) > 0)
                             <div class="px-1.5 pt-1 text-[0.78rem] font-semibold uppercase tracking-wide text-faint">Procedures ({{ count($routines['procedures']) }})</div>
                             @foreach ($routines['procedures'] as $name)
-                                @include('livewire.partials.explorer-routine', ['database' => $database, 'name' => $name, 'kind' => 'procedure', 'icon' => '⚙'])
+                                @include('livewire.partials.explorer-routine', ['database' => $database, 'name' => $name, 'kind' => 'procedure', 'icon' => 'settings'])
                             @endforeach
                         @endif
 
                         @if (count($routines['functions']) > 0)
                             <div class="px-1.5 pt-1 text-[0.78rem] font-semibold uppercase tracking-wide text-faint">Functions ({{ count($routines['functions']) }})</div>
                             @foreach ($routines['functions'] as $name)
-                                @include('livewire.partials.explorer-routine', ['database' => $database, 'name' => $name, 'kind' => 'function', 'icon' => 'ƒ'])
+                                @include('livewire.partials.explorer-routine', ['database' => $database, 'name' => $name, 'kind' => 'function', 'icon' => 'function'])
                             @endforeach
                         @endif
 
                         @if (count($routines['triggers']) > 0)
                             <div class="px-1.5 pt-1 text-[0.78rem] font-semibold uppercase tracking-wide text-faint">Triggers ({{ count($routines['triggers']) }})</div>
                             @foreach ($routines['triggers'] as $trigger)
-                                @include('livewire.partials.explorer-routine', ['database' => $database, 'name' => $trigger['name'], 'kind' => 'trigger', 'icon' => '⚡', 'subtitle' => $trigger['table']])
+                                @include('livewire.partials.explorer-routine', ['database' => $database, 'name' => $trigger['name'], 'kind' => 'trigger', 'icon' => 'bolt', 'subtitle' => $trigger['table']])
                             @endforeach
                         @endif
 
                         @if (count($routines['events']) > 0)
                             <div class="px-1.5 pt-1 text-[0.78rem] font-semibold uppercase tracking-wide text-faint">Events ({{ count($routines['events']) }})</div>
                             @foreach ($routines['events'] as $name)
-                                @include('livewire.partials.explorer-routine', ['database' => $database, 'name' => $name, 'kind' => 'event', 'icon' => '⏰'])
+                                @include('livewire.partials.explorer-routine', ['database' => $database, 'name' => $name, 'kind' => 'event', 'icon' => 'clock'])
                             @endforeach
                         @endif
                     </div>
