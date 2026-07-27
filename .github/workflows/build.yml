@@ -182,16 +182,16 @@ jobs:
             linux-x64)
               compgen -G 'tabulasql_*_amd64.deb' >/dev/null
               compgen -G 'TabulaSQL-*.AppImage' >/dev/null
-              ;
+              ;;
             windows-x64)
               compgen -G 'TabulaSQL-*-setup.exe' >/dev/null
-              ;
+              ;;
             macos-arm64)
               compgen -G 'TabulaSQL-*-arm64.dmg' >/dev/null
-              ;
+              ;;
             macos-x64)
               compgen -G 'TabulaSQL-*-x64.dmg' >/dev/null
-              ;
+              ;;
           esac
 
       # Release assets get a stable, version-free filename so a website's
@@ -208,19 +208,19 @@ jobs:
               test -f TabulaSQL-*.AppImage || { echo "Missing AppImage after native:build"; ls -la; exit 1; }
               mv -v tabulasql_*_amd64.deb "TabulaSQL-linux-x64.deb"
               mv -v TabulaSQL-*.AppImage "TabulaSQL-linux-x64.AppImage"
-              ;
+              ;;
             windows-x64)
               test -f TabulaSQL-*-setup.exe || { echo "Missing Windows setup.exe after native:build"; ls -la; exit 1; }
               mv -v TabulaSQL-*-setup.exe "TabulaSQL-windows-x64-setup.exe"
-              ;
+              ;;
             macos-arm64)
               test -f TabulaSQL-*-arm64.dmg || { echo "Missing macOS arm64 dmg after native:build"; ls -la; exit 1; }
               mv -v TabulaSQL-*-arm64.dmg "TabulaSQL-macos-arm64.dmg"
-              ;
+              ;;
             macos-x64)
               test -f TabulaSQL-*-x64.dmg || { echo "Missing macOS x64 dmg after native:build"; ls -la; exit 1; }
               mv -v TabulaSQL-*-x64.dmg "TabulaSQL-macos-x64.dmg"
-              ;
+              ;;
           esac
 
       # Guard against shipping a desktop build without the bundled PHP CLI
@@ -239,7 +239,7 @@ jobs:
               file squashfs-root/resources/build/php/php | grep -qi 'elf\|executable'
               ls -lh squashfs-root/resources/build/php/php
               rm -rf squashfs-root
-              ;
+              ;;
             windows-x64)
               # NSIS installer is not easy to inspect here; check unpacked dir
               # if electron-builder left one, otherwise skip.
@@ -248,7 +248,7 @@ jobs:
               else
                 echo "No win-unpacked tree to verify; relying on build logs."
               fi
-              ;
+              ;;
             macos-arm64|macos-x64)
               # DMG mount is awkward in CI; prefer unpacked .app if present.
               app=$(find nativephp/electron/dist -maxdepth 2 -type d -name '*.app' | head -1 || true)
@@ -258,7 +258,7 @@ jobs:
               else
                 echo "No .app tree to verify; relying on build logs."
               fi
-              ;
+              ;;
           esac
 
       - name: Upload build artifacts
