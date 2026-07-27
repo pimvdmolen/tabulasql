@@ -56,14 +56,15 @@ try {
         "sqlite3",
         "mbstring",
         "zip",
-        "openssl"
+        "openssl",
+        "intl"
     )
 
     # App-focused set: skip gd/opcache (common Windows static-build footguns;
-    # this DB client does not need them). Keep sodium + pdo_mysql.
+    # this DB client does not need them). Keep sodium + pdo_mysql + intl.
     $BuildExtensions = @(
         "bcmath", "ctype", "curl", "dom", "fileinfo", "filter", "iconv",
-        "mbstring", "mbregex", "openssl", "pdo", "pdo_mysql", "pdo_sqlite",
+        "intl", "mbstring", "mbregex", "openssl", "pdo", "pdo_mysql", "pdo_sqlite",
         "phar", "session", "simplexml", "sockets", "sodium", "sqlite3",
         "tokenizer", "xml", "zip", "zlib"
     ) -join ","

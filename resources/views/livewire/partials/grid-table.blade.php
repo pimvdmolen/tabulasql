@@ -131,12 +131,12 @@
                                 <button
                                     class="cursor-pointer rounded bg-raised px-1.5 py-0.5 text-left text-dim hover:bg-overlay"
                                     @click="viewer = {
-                                        title: @js($column.', '.($value['blob'] ? 'binary, ' : '').\Illuminate\Support\Number::fileSize($value['size'])),
+                                        title: @js($column.', '.($value['blob'] ? 'binary, ' : '').\App\Support\Bytes::format($value['size'])),
                                         content: @js($value['full']),
                                         note: @js($value['truncated'] ? 'Value truncated to 64 KB for display.' : ($value['blob'] ? 'Hex representation.' : null)),
                                     }"
                                 >
-                                    {{ $value['blob'] ? '⬡' : '¶' }} {{ \Illuminate\Support\Number::fileSize($value['size']) }}
+                                    {{ $value['blob'] ? '⬡' : '¶' }} {{ \App\Support\Bytes::format($value['size']) }}
                                 </button>
                             @else
                                 {{ $value }}
