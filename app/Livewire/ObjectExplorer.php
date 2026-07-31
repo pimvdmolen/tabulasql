@@ -319,13 +319,23 @@ class ObjectExplorer extends Component
         'event' => 'EVENT',
     ];
 
-    /** @var ?array{type: string, database: string, table: ?string, kind: string, input: string} */
+    /** @var ?array{type: string, database: string, table: ?string, kind: string, input: string, ignore_fk: bool} */
     public ?array $operation = null;
+
+    /** @var string[] Tables that reference the truncate target via FK. */
+    public array $truncateReferencingTables = [];
 
     public function startOperation(string $type, string $database, ?string $table, string $kind = 'table'): void
     {
         if (! in_array($type, ['rename', 'truncate', 'drop', 'drop-database', 'truncate-database', 'empty-database'], true)) {
             return;
+        }
+
+        $this->truncateReferencingTables = [];
+        $this->error = null;
+
+        if ($type === 'truncate' && $table !== null) {
+            $this->truncateReferencingTables = $this->tablesReferencing($database, $table);
         }
 
         $this->operation = [
@@ -334,12 +344,34 @@ class ObjectExplorer extends Component
             'table' => $table,
             'kind' => $kind,
             'input' => $type === 'rename' ? (string) $table : '',
+            'ignore_fk' => false,
         ];
     }
 
     public function cancelOperation(): void
     {
         $this->operation = null;
+        $this->truncateReferencingTables = [];
+    }
+
+    /**
+     * @return string[]
+     */
+    private function tablesReferencing(string $database, string $table): array
+    {
+        try {
+            $rows = app(ConnectionManager::class)->db($this->connection())->select(
+                'SELECT DISTINCT TABLE_NAME AS name
+                 FROM information_schema.KEY_COLUMN_USAGE
+                 WHERE REFERENCED_TABLE_SCHEMA = ? AND REFERENCED_TABLE_NAME = ?
+                 ORDER BY TABLE_NAME',
+                [$database, $table]
+            );
+
+            return array_column($rows, 'name');
+        } catch (Throwable) {
+            return [];
+        }
     }
 
     public function executeOperation(): void
@@ -349,6 +381,7 @@ class ObjectExplorer extends Component
         }
 
         ['type' => $type, 'database' => $database, 'table' => $table, 'kind' => $kind, 'input' => $input] = $this->operation;
+        $ignoreFk = (bool) ($this->operation['ignore_fk'] ?? false);
 
         // Guards: destructive ops require typing the exact object name.
         if ($type === 'drop' && $input !== $table) {
@@ -365,6 +398,12 @@ class ObjectExplorer extends Component
 
         if ($type === 'rename' && (trim($input) === '' || $input === $table)) {
             $this->error = 'Enter a new table name.';
+
+            return;
+        }
+
+        if ($type === 'truncate' && $this->truncateReferencingTables !== [] && ! $ignoreFk) {
+            $this->error = 'Other tables reference this one ('.implode(', ', $this->truncateReferencingTables).'). Enable “Ignore foreign key checks” to proceed, or truncate/clear those tables first.';
 
             return;
         }
@@ -386,11 +425,16 @@ class ObjectExplorer extends Component
             'drop-database' => sprintf('DROP DATABASE %s', $explorer->quote($database)),
         };
 
-        $result = app(QueryRunner::class)->run($this->connection(), null, $sql);
+        if ($type === 'truncate' && $ignoreFk) {
+            $result = $this->runTruncateIgnoringFk($sql);
+        } else {
+            $result = app(QueryRunner::class)->run($this->connection(), null, $sql);
+        }
 
         if ($result['ok']) {
             $this->dispatch('log', connectionId: $this->connectionId, type: 'success', text: "$sql. OK ({$result['duration_ms']} ms)");
             $this->operation = null;
+            $this->truncateReferencingTables = [];
             $this->error = null;
 
             if ($type === 'drop-database') {
@@ -410,6 +454,30 @@ class ObjectExplorer extends Component
             }
         } else {
             $this->error = $result['error'];
+        }
+    }
+
+    /**
+     * @return array{ok: bool, duration_ms: int, error: ?string}
+     */
+    private function runTruncateIgnoringFk(string $sql): array
+    {
+        $started = hrtime(true);
+        $db = app(ConnectionManager::class)->db($this->connection());
+
+        try {
+            $db->statement('SET FOREIGN_KEY_CHECKS = 0');
+            $db->statement($sql);
+
+            return ['ok' => true, 'duration_ms' => (int) ((hrtime(true) - $started) / 1_000_000), 'error' => null];
+        } catch (Throwable $e) {
+            return ['ok' => false, 'duration_ms' => (int) ((hrtime(true) - $started) / 1_000_000), 'error' => $e->getMessage()];
+        } finally {
+            try {
+                $db->statement('SET FOREIGN_KEY_CHECKS = 1');
+            } catch (Throwable) {
+                //
+            }
         }
     }
 

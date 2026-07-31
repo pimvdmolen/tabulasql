@@ -14,6 +14,13 @@
         <x-icon name="palette" class="size-4" />
     </button>
     <button
+        wire:click="toggleMessagesTab"
+        class="rounded p-1.5 {{ $showMessagesTab ? 'text-sky-600 dark:text-sky-400 bg-sky-500/10' : 'text-muted hover:bg-raised hover:text-body' }}"
+        title="{{ $showMessagesTab ? 'Messages tab visible' : 'Show Messages tab' }}"
+    >
+        <x-icon name="history" class="size-4" />
+    </button>
+    <button
         x-on:click="showKeys = true"
         class="rounded p-1.5 text-muted hover:bg-raised hover:text-body"
         title="Keyboard shortcuts"
@@ -75,13 +82,14 @@
                         'Ctrl+Space' => 'Autocomplete',
                         'F5 / Ctrl+R' => 'Refresh grid',
                         'Ctrl+F' => 'Filter dialog',
-                        'F11' => 'Show Table Data tab',
+                        'F11' => 'Show Data tab',
                         'Ctrl+A' => 'Select all rows (grid)',
                         'Shift+Click' => 'Extend row selection',
                         'Delete' => 'Delete selected rows',
-                        'Escape' => 'Close dialog / cancel edit',
+                        'Escape' => 'Clear row selection / close dialog / cancel edit',
                         'Double-click cell' => 'Edit value',
                         'Right-click' => 'Context menu',
+                        'Drag tabs / connections' => 'Reorder',
                     ] as $key => $action)
                         <tr>
                             <td class="w-44 py-1"><kbd>{{ $key }}</kbd></td>

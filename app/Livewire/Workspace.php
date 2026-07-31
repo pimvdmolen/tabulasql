@@ -83,6 +83,18 @@ class Workspace extends Component
         }
     }
 
+    public function reorderOpenTabs(int $from, int $to): void
+    {
+        if ($from === $to || $from < 0 || $to < 0 || $from >= count($this->openTabs) || $to >= count($this->openTabs)) {
+            return;
+        }
+
+        $item = array_splice($this->openTabs, $from, 1)[0];
+        array_splice($this->openTabs, $to, 0, [$item]);
+        $this->openTabs = array_values($this->openTabs);
+        $this->persistTabs();
+    }
+
     #[On('close-connection')]
     public function closeConnection(int $id): void
     {

@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Connection;
 use App\Services\ConnectionManager;
+use App\Support\ConnectionColor;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -54,6 +55,7 @@ class ConnectionForm extends Component
     public function create(): void
     {
         $this->resetForm();
+        $this->color = ConnectionColor::resolve(null, 'new');
         $this->open = true;
     }
 
@@ -151,7 +153,14 @@ class ConnectionForm extends Component
             ? Connection::findOrFail($this->connectionId)
             : new Connection;
 
-        $connection->fill($this->payload())->save();
+        $payload = $this->payload();
+        $payload['color'] = ConnectionColor::resolve($payload['color'] ?? null, $payload['name']);
+
+        if ($this->connectionId === null) {
+            $payload['sort_order'] = ((int) Connection::max('sort_order')) + 1;
+        }
+
+        $connection->fill($payload)->save();
 
         $this->open = false;
         $this->dispatch('connection-saved', id: $connection->id);

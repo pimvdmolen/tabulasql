@@ -19,26 +19,36 @@
             ><x-icon name="plus" class="size-3.5" /></button>
         </span>
     </div>
-    <div class="min-h-0 flex-1 overflow-y-auto p-1">
-        @forelse ($connections as $connection)
+    <div
+        class="min-h-0 flex-1 overflow-y-auto p-1"
+        x-data="sortableList({ onReorder: (from, to) => $wire.reorderConnections(from, to) })"
+    >
+        @forelse ($connections as $index => $connection)
             @php
                 $isOpen = in_array($connection->id, $openIds, true);
                 $isActive = $activeId !== null && (int) $activeId === $connection->id;
+                $dotColor = \App\Support\ConnectionColor::resolve($connection->color, $connection->name);
             @endphp
             <div
                 wire:key="conn-{{ $connection->id }}"
                 wire:click="openConnection({{ $connection->id }})"
                 wire:loading.class="opacity-60 pointer-events-none"
                 wire:target="openConnection({{ $connection->id }})"
+                draggable="true"
+                x-on:dragstart.stop="dragStart($event, {{ $index }})"
+                x-on:dragover="dragOver($event)"
+                x-on:drop.stop="drop($event, {{ $index }})"
+                x-on:dragend="dragEnd($event)"
                 x-on:contextmenu.prevent="$store.ctx.open($event, window.treeConnectionMenu($wire, { connectionId: {{ $connection->id }}, isOpen: {{ $isOpen ? 'true' : 'false' }}, restricted: {{ filled($connection->database) ? 'true' : 'false' }} }))"
-                class="group flex cursor-default items-center gap-2 rounded px-2 py-1.5 text-sm
+                class="group flex cursor-grab items-center gap-2 rounded px-2 py-1.5 text-sm active:cursor-grabbing
                     {{ $isActive
                         ? 'bg-sky-500/20 font-medium text-strong'
                         : ($isOpen ? 'text-strong hover:bg-raised' : 'text-body hover:bg-raised') }}"
-                title="{{ $isOpen ? ($isActive ? 'Active connection' : 'Connected; click to show') : 'Click to connect' }}"
+                title="{{ $isOpen ? ($isActive ? 'Active connection' : 'Connected; click to show') : 'Click to connect; drag to reorder' }}"
             >
-                <span wire:loading.remove wire:target="openConnection({{ $connection->id }})" class="size-2 shrink-0 rounded-full" style="background: {{ $connection->color ?? '#64748b' }}"></span>
-                <span wire:loading wire:target="openConnection({{ $connection->id }})" class="size-2 shrink-0 animate-spin rounded-full border-2 border-sky-500 border-t-transparent"></span>
+                <x-icon name="grip-vertical" class="size-3 shrink-0 text-faint" />
+                <span wire:loading.remove wire:target="openConnection({{ $connection->id }})" class="size-2.5 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15" style="background: {{ $dotColor }}"></span>
+                <span wire:loading wire:target="openConnection({{ $connection->id }})" class="size-2.5 shrink-0 animate-spin rounded-full border-2 border-sky-500 border-t-transparent"></span>
                 <span class="min-w-0 flex-1 truncate">{{ $connection->name }}</span>
                 <span wire:loading wire:target="openConnection({{ $connection->id }})" class="shrink-0 text-[0.7rem] text-sky-600 dark:text-sky-400">Connecting…</span>
                 @if ($isOpen)

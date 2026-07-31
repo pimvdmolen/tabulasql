@@ -160,7 +160,7 @@ class QueryEditor extends Component
     public function addTab(): void
     {
         $id = $this->nextTabId++;
-        $this->tabs[] = ['id' => $id, 'title' => "Query $id", 'sql' => ''];
+        $this->tabs[] = ['id' => $id, 'title' => 'Query '.(count($this->tabs) + 1), 'sql' => ''];
         $this->activeTab = $id;
     }
 
@@ -175,6 +175,16 @@ class QueryEditor extends Component
         if ($this->activeTab === $tabId) {
             $this->activeTab = end($this->tabs)['id'];
         }
+
+        $this->renumberTabTitles();
+    }
+
+    private function renumberTabTitles(): void
+    {
+        foreach ($this->tabs as $index => &$tab) {
+            $tab['title'] = 'Query '.($index + 1);
+        }
+        unset($tab);
     }
 
     public function activateTab(int $tabId): void

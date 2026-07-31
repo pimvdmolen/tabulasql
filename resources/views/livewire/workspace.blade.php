@@ -1,25 +1,34 @@
 <div class="flex h-screen flex-col">
     {{-- Connection tab bar --}}
     <div class="flex h-9 shrink-0 items-center border-b border-edge/60 bg-chrome px-1">
-        <div class="flex min-h-0 min-w-0 flex-1 items-end gap-px self-stretch overflow-x-auto">
-            @forelse ($openTabs as $tab)
+        <div
+            class="flex min-h-0 min-w-0 flex-1 items-end gap-px self-stretch overflow-x-auto"
+            x-data="sortableList({ onReorder: (from, to) => $wire.reorderOpenTabs(from, to) })"
+        >
+            @forelse ($openTabs as $index => $tab)
+                @php $tabColor = \App\Support\ConnectionColor::resolve($tab['color'] ?? null, $tab['name']); @endphp
                 <div
                     wire:key="conn-tab-{{ $tab['id'] }}"
-                    class="group flex h-8 items-center border-t-2
+                    draggable="true"
+                    x-on:dragstart="dragStart($event, {{ $index }})"
+                    x-on:dragover="dragOver($event)"
+                    x-on:drop="drop($event, {{ $index }})"
+                    x-on:dragend="dragEnd($event)"
+                    class="group flex h-8 cursor-grab items-center border-t-2 active:cursor-grabbing
                         {{ $activeTabId === $tab['id']
                             ? 'border-sky-500 bg-surface text-strong'
-                            : 'border-transparent bg-raised/60 text-dim hover:text-body' }}"
+                            : 'border-transparent bg-raised/60 text-dim' }}"
                 >
                     <button
                         wire:click="activateTab({{ $tab['id'] }})"
                         class="flex h-full items-center gap-2 pl-3 pr-1 text-sm"
                     >
-                        <span class="size-2 rounded-full" style="background: {{ $tab['color'] ?? '#64748b' }}"></span>
+                        <span class="size-2 rounded-full" style="background: {{ $tabColor }}"></span>
                         {{ $tab['name'] }}
                     </button>
                     <button
                         wire:click="closeTab({{ $tab['id'] }})"
-                        class="mr-1 rounded px-1 text-muted opacity-0 hover:bg-overlay hover:text-body group-hover:opacity-100"
+                        class="mr-1 rounded px-1 text-muted opacity-0 group-hover:opacity-100"
                         title="Close connection"
                     >&times;</button>
                 </div>

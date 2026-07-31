@@ -149,6 +149,15 @@
                     </label>
                 @elseif ($operation['type'] === 'truncate')
                     <p class="mb-3 text-[0.78rem] text-dim">This deletes <strong>all rows</strong> from {{ $target }}. The structure stays intact. This cannot be undone.</p>
+                    @if ($truncateReferencingTables !== [])
+                        <div class="mb-3 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[0.78rem] text-amber-800 dark:text-amber-300">
+                            Referenced by: <strong>{{ implode(', ', $truncateReferencingTables) }}</strong>. Truncate will fail unless you ignore foreign key checks.
+                        </div>
+                    @endif
+                    <label class="mb-3 flex items-center gap-2 text-[0.78rem] text-body">
+                        <input type="checkbox" wire:model="operation.ignore_fk" class="rounded border-edge">
+                        Ignore foreign key checks for this truncate
+                    </label>
                 @else
                     <p class="mb-2 text-[0.78rem] text-dim">
                         This permanently deletes {{ $deletionScope[$operation['type']] ?? 'this object' }}. This cannot be undone.

@@ -146,10 +146,15 @@ kbd {
     background: transparent;
 }
 
-/* After column autofit / manual resize, explicit widths own the layout ;
+/* After column autofit / manual resize, explicit widths own the layout;
    drop the default max-w-md cap so long cell content can actually show. */
+table.grid-cols-sized {
+    table-layout: fixed;
+}
+
 table.grid-cols-sized td {
     max-width: none;
+    overflow: hidden;
 }
 
 /* Native-feeling number fields: hide browser spinner arrows. */
@@ -197,10 +202,13 @@ input[type='checkbox']:disabled {
     cursor: default;
 }
 
-/* Keep inline cell editors from expanding the column. */
+/* Keep inline cell editors from expanding the column; scroll long values. */
 td .cell-editor {
     box-sizing: border-box;
+    display: block;
     width: 100%;
     min-width: 0;
     max-width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
 }

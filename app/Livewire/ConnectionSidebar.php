@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Connection;
 use App\Models\Setting;
+use App\Support\ConnectionColor;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -26,6 +27,25 @@ class ConnectionSidebar extends Component
         $this->dispatch('open-connection', id: $id);
     }
 
+    public function reorderConnections(int $from, int $to): void
+    {
+        $connections = Connection::orderBy('sort_order')->orderBy('name')->get();
+
+        if ($from === $to || $from < 0 || $to < 0 || $from >= $connections->count() || $to >= $connections->count()) {
+            return;
+        }
+
+        $ordered = $connections->values()->all();
+        $item = array_splice($ordered, $from, 1)[0];
+        array_splice($ordered, $to, 0, [$item]);
+
+        foreach ($ordered as $index => $connection) {
+            if ((int) $connection->sort_order !== $index) {
+                $connection->forceFill(['sort_order' => $index])->saveQuietly();
+            }
+        }
+    }
+
     public function duplicateConnection(int $id): void
     {
         $source = Connection::find($id);
@@ -36,6 +56,8 @@ class ConnectionSidebar extends Component
 
         $copy = $source->replicate();
         $copy->name = $this->uniqueCopyName($source->name);
+        $copy->sort_order = ((int) Connection::max('sort_order')) + 1;
+        $copy->color = ConnectionColor::resolve($copy->color, $copy->name);
         $copy->save();
 
         $this->dispatch('connection-saved');
@@ -72,7 +94,7 @@ class ConnectionSidebar extends Component
         $openTabs = Setting::get('open_tabs');
 
         return view('livewire.connection-sidebar', [
-            'connections' => Connection::orderBy('name')->get(),
+            'connections' => Connection::orderBy('sort_order')->orderBy('name')->get(),
             'openIds' => $openTabs['ids'] ?? [],
             'activeId' => $openTabs['active'] ?? null,
         ]);

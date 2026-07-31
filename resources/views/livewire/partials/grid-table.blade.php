@@ -97,13 +97,22 @@
                         $isEditing = $editable && $editingCell !== null && $editingCell['row'] === $rowIndex && $editingCell['col'] === $column;
                         $isFk = isset($fkColumns[$column]);
                     @endphp
+                    @php
+                        $isBlob = is_array($value) && ($value['blob'] ?? false);
+                        $isLongText = is_array($value) && ! $isBlob;
+                        $displayValue = $isLongText ? ($value['preview'] ?? '') : $value;
+                        $editValue = $isLongText ? ($value['full'] ?? '') : $value;
+                        $canEditCell = $editable && ! $isBlob;
+                    @endphp
                     <td
-                        @if ($editable && ! is_array($value)) wire:dblclick.stop="startEdit({{ $rowIndex }}, @js($column))" @endif
+                        @if ($canEditCell)
+                            x-on:dblclick.stop="freezeAllWidths(); $wire.startEdit({{ $rowIndex }}, @js($column))"
+                        @endif
                         @if (($mode ?? null) === 'table')
                             x-on:contextmenu.prevent="$store.ctx.open($event, window.gridCellMenu($wire, {
                                 row: {{ $rowIndex }},
                                 col: @js($column),
-                                editable: @js($editable),
+                                editable: @js($editable && ! $isBlob),
                                 isFk: @js($isFk),
                                 hasPending: @js($pendingEdits !== []),
                                 hasSelection: @js($selectedRows !== []),
@@ -124,16 +133,16 @@
                                     x-on:click.stop
                                     class="cell-editor border border-sky-500 bg-surface px-1 py-0 text-body focus:outline-none"
                                 >
-                                    <option value="" @selected($value === null)></option>
+                                    <option value="" @selected($editValue === null)></option>
                                     @foreach ($options as $option)
-                                        <option value="{{ $option }}" @selected($value === $option)>{{ $option }}</option>
+                                        <option value="{{ $option }}" @selected($editValue === $option)>{{ $option }}</option>
                                     @endforeach
                                 </select>
                             @else
                                 <input
-                                    type="{{ $inputType }}"
-                                    value="{{ $inputType === 'datetime-local' ? str_replace(' ', 'T', (string) $value) : $value }}"
-                                    data-datetime="{{ $inputType === 'datetime-local' ? '1' : '0' }}"
+                                    type="{{ $isLongText ? 'text' : $inputType }}"
+                                    value="{{ $inputType === 'datetime-local' && ! $isLongText ? str_replace(' ', 'T', (string) $editValue) : $editValue }}"
+                                    data-datetime="{{ $inputType === 'datetime-local' && ! $isLongText ? '1' : '0' }}"
                                     x-init="$nextTick(() => { $el.focus(); if ($el.dataset.datetime !== '1') $el.select?.(); })"
                                     x-on:keydown.enter="$wire.setCellValue({{ $rowIndex }}, @js($column), $el.dataset.datetime === '1' ? $event.target.value.replace('T', ' ') : $event.target.value)"
                                     x-on:keydown.escape.stop="$wire.cancelEditCell()"
@@ -154,18 +163,40 @@
                                 @endif
                             @elseif ($value === null)
                                 <span class="italic text-faint">(NULL)</span>
-                            @elseif (is_array($value))
+                            @elseif ($isBlob)
                                 <button
-                                    class="inline-flex cursor-pointer items-center gap-1 rounded bg-raised px-1.5 py-0.5 text-left text-dim hover:bg-overlay"
+                                    class="inline-flex cursor-pointer items-center gap-1 rounded bg-raised px-1.5 py-0.5 text-left text-dim"
                                     @click.stop="viewer = {
-                                        title: @js($column.', '.($value['blob'] ? 'binary, ' : '').\App\Support\Bytes::format($value['size'])),
+                                        title: @js($column.', binary, '.\App\Support\Bytes::format($value['size'])),
                                         content: @js($value['full']),
-                                        note: @js($value['truncated'] ? 'Value truncated to 64 KB for display.' : ($value['blob'] ? 'Hex representation.' : null)),
+                                        note: @js($value['truncated'] ? 'Value truncated to 64 KB for display.' : 'Hex representation.'),
                                     }"
                                 >
-                                    <x-icon :name="$value['blob'] ? 'file' : 'letter-t'" class="size-3" />
+                                    <x-icon name="file" class="size-3" />
                                     {{ \App\Support\Bytes::format($value['size']) }}
                                 </button>
+                            @elseif ($isLongText)
+                                <button
+                                    type="button"
+                                    class="block max-w-full truncate text-left"
+                                    title="Click to view full value ({{ \App\Support\Bytes::format($value['size']) }})"
+                                    @click.stop="
+                                        (() => {
+                                            const raw = @js($value['full']);
+                                            let content = raw;
+                                            let note = @js($value['truncated'] ? 'Value truncated to 64 KB for display.' : null);
+                                            try {
+                                                content = JSON.stringify(JSON.parse(raw), null, 2);
+                                                note = note ? note + ' Pretty-printed JSON.' : 'Pretty-printed JSON.';
+                                            } catch (e) {}
+                                            viewer = {
+                                                title: @js($column.', '.\App\Support\Bytes::format($value['size'])),
+                                                content,
+                                                note,
+                                            };
+                                        })()
+                                    "
+                                >{{ $displayValue }}{{ ($value['truncated'] ?? false) || strlen($value['full'] ?? '') > 60 ? '…' : '' }}</button>
                             @else
                                 {{ $value }}
                             @endif

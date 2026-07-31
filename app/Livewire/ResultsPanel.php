@@ -23,8 +23,14 @@ class ResultsPanel extends Component
 
     public string $activeTab = 'data';
 
-    /** @var string[] Ordered result chrome tabs. */
-    public array $tabOrder = ['data', 'info', 'messages'];
+    /** @var string[] Ordered result chrome tabs (Messages is optional). */
+    public array $tabOrder = ['data', 'info'];
+
+    /** When true, the Messages tab is shown in the result chrome. */
+    public bool $showMessagesTab = false;
+
+    /** @var ?array{name: string, field: 'name'|'type'|'nullable'|'default'} */
+    public ?array $editingColumn = null;
 
     /** 'table' = browsing a table, 'query' = showing an editor resultset. */
     public string $mode = 'table';
@@ -89,7 +95,8 @@ class ResultsPanel extends Component
 
     public function mount(): void
     {
-        $this->tabOrder = $this->normalizeTabOrder(Setting::get('result_tab_order', ['data', 'info', 'messages']));
+        $this->showMessagesTab = (bool) Setting::get('show_messages_tab', false);
+        $this->tabOrder = $this->normalizeTabOrder(Setting::get('result_tab_order', ['data', 'info']));
         $this->activeTab = $this->tabOrder[0] ?? 'data';
         $this->safeMode = (bool) Setting::get('safe_mode', false);
         $this->log('info', 'Session started.');
@@ -101,22 +108,37 @@ class ResultsPanel extends Component
         $this->safeMode = $enabled;
     }
 
+    #[On('show-messages-tab-changed')]
+    public function onShowMessagesTabChanged(bool $enabled): void
+    {
+        $this->showMessagesTab = $enabled;
+        $this->tabOrder = $this->normalizeTabOrder($this->tabOrder);
+
+        if (! $this->showMessagesTab && $this->activeTab === 'messages') {
+            $this->activeTab = $this->tabOrder[0] ?? 'data';
+        }
+    }
+
     /**
      * @param  mixed  $order
      * @return string[]
      */
     private function normalizeTabOrder(mixed $order): array
     {
-        $defaults = ['data', 'info', 'messages'];
-        $labels = array_flip($defaults);
+        $allowed = ['data', 'info'];
+        if ($this->showMessagesTab) {
+            $allowed[] = 'messages';
+        }
+
+        $labels = array_flip($allowed);
 
         if (! is_array($order)) {
-            return $defaults;
+            return $allowed;
         }
 
         $clean = array_values(array_filter($order, fn ($key) => isset($labels[$key])));
 
-        foreach ($defaults as $key) {
+        foreach ($allowed as $key) {
             if (! in_array($key, $clean, true)) {
                 $clean[] = $key;
             }
@@ -125,23 +147,18 @@ class ResultsPanel extends Component
         return $clean;
     }
 
-    public function moveTab(string $key, string $direction): void
+    public function reorderTabs(int $from, int $to): void
     {
-        $index = array_search($key, $this->tabOrder, true);
-
-        if ($index === false) {
+        if ($from === $to || $from < 0 || $to < 0 || $from >= count($this->tabOrder) || $to >= count($this->tabOrder)) {
             return;
         }
 
-        $swapWith = $direction === 'left' ? $index - 1 : $index + 1;
-
-        if ($swapWith < 0 || $swapWith >= count($this->tabOrder)) {
-            return;
-        }
-
-        [$this->tabOrder[$index], $this->tabOrder[$swapWith]] = [$this->tabOrder[$swapWith], $this->tabOrder[$index]];
+        $item = array_splice($this->tabOrder, $from, 1)[0];
+        array_splice($this->tabOrder, $to, 0, [$item]);
+        $this->tabOrder = array_values($this->tabOrder);
         Setting::set('result_tab_order', $this->tabOrder);
     }
+
 
     public function selectAllRows(): void
     {
@@ -434,6 +451,11 @@ class ResultsPanel extends Component
             return;
         }
 
+        $value = $this->gridResult['rows'][$row][$column] ?? null;
+        if (is_array($value) && ($value['blob'] ?? false)) {
+            return;
+        }
+
         $this->editingCell = ['row' => $row, 'col' => $column];
     }
 
@@ -680,6 +702,20 @@ class ResultsPanel extends Component
     public function cancelSafeAction(): void
     {
         $this->pendingSafeAction = null;
+    }
+
+    private function columnDefaultSql(?string $default, bool $nullable): string
+    {
+        if ($default === null) {
+            return $nullable ? 'DEFAULT NULL' : '';
+        }
+
+        // Expressions / keywords from information_schema must stay unquoted.
+        if (preg_match('/^(CURRENT_TIMESTAMP(?:\(\d+\))?|NULL|TRUE|FALSE|[-+]?\d+(?:\.\d+)?)$/i', $default)) {
+            return 'DEFAULT '.$default;
+        }
+
+        return 'DEFAULT '.$this->sqlLiteral($default);
     }
 
     private function sqlLiteral(mixed $value): string
@@ -1058,6 +1094,125 @@ class ResultsPanel extends Component
         }
     }
 
+    public function startEditColumn(string $name, string $field): void
+    {
+        if (! in_array($field, ['name', 'type', 'nullable', 'default'], true) || $this->database === null || $this->table === null) {
+            return;
+        }
+
+        $this->editingColumn = ['name' => $name, 'field' => $field];
+    }
+
+    public function cancelEditColumn(): void
+    {
+        $this->editingColumn = null;
+    }
+
+    public function saveColumnEdit(string $name, string $field, ?string $value): void
+    {
+        $this->editingColumn = null;
+
+        if ($this->database === null || $this->table === null || ! in_array($field, ['name', 'type', 'nullable', 'default'], true)) {
+            return;
+        }
+
+        $explorer = app(SchemaExplorer::class);
+        $columns = $explorer->columns($this->connection(), $this->database, $this->table);
+        $column = collect($columns)->firstWhere('name', $name);
+
+        if ($column === null) {
+            $this->log('error', "Column `$name` not found.");
+
+            return;
+        }
+
+        if ($column['key'] === 'PRI' && in_array($field, ['name', 'type', 'nullable'], true)) {
+            $this->log('error', 'Primary key columns cannot be changed from Structure; use DDL or the index manager.');
+
+            return;
+        }
+
+        $fks = $explorer->foreignKeyConstraints($this->connection(), $this->database, $this->table);
+        $isFk = collect($fks)->contains(fn ($fk) => $fk['column'] === $name);
+
+        if ($isFk && in_array($field, ['name', 'type'], true)) {
+            $this->log('error', "Column `$name` is part of a foreign key. Drop the constraint before changing name/type.");
+
+            return;
+        }
+
+        $newName = $field === 'name' ? trim((string) $value) : $name;
+        $newType = $field === 'type' ? trim((string) $value) : $column['type'];
+        $nullable = $field === 'nullable'
+            ? in_array(strtoupper((string) $value), ['YES', '1', 'TRUE'], true)
+            : $column['nullable'];
+        $default = $column['default'];
+
+        if ($field === 'default') {
+            $default = $value === '' || $value === null || strtoupper((string) $value) === 'NULL' ? null : $value;
+        }
+
+        if ($newName === '' || $newType === '') {
+            $this->log('error', 'Column name and type are required.');
+
+            return;
+        }
+
+        $unchanged = match ($field) {
+            'name' => $newName === $name,
+            'type' => $newType === $column['type'],
+            'nullable' => $nullable === $column['nullable'],
+            'default' => $default === $column['default'],
+            default => true,
+        };
+
+        if ($unchanged) {
+            return;
+        }
+
+        $nullSql = $nullable ? 'NULL' : 'NOT NULL';
+        $defaultSql = $this->columnDefaultSql($default, $nullable);
+        $extra = trim((string) ($column['extra'] ?? ''));
+        // Avoid duplicating auto_increment / on update clauses already in EXTRA.
+        $extraSql = $extra !== '' ? ' '.$extra : '';
+
+        $sql = sprintf(
+            'ALTER TABLE %s.%s CHANGE COLUMN %s %s %s %s %s%s',
+            $explorer->quote($this->database),
+            $explorer->quote($this->table),
+            $explorer->quote($name),
+            $explorer->quote($newName),
+            $newType,
+            $nullSql,
+            $defaultSql,
+            $extraSql
+        );
+
+        $result = app(QueryRunner::class)->run($this->connection(), $this->database, $sql);
+
+        if ($result['ok']) {
+            $explorer->forgetTable($this->connection(), $this->database, $this->table);
+            $this->version++;
+            unset($this->tableInfo);
+            $this->log('success', "$sql. OK ({$result['duration_ms']} ms)");
+        } else {
+            $this->log('error', $result['error'] ?? 'ALTER TABLE failed.');
+        }
+    }
+
+    public function toggleColumnNullable(string $name): void
+    {
+        $explorer = app(SchemaExplorer::class);
+        $columns = $explorer->columns($this->connection(), $this->database, $this->table);
+        $column = collect($columns)->firstWhere('name', $name);
+
+        if ($column === null) {
+            return;
+        }
+
+        $this->saveColumnEdit($name, 'nullable', $column['nullable'] ? 'NO' : 'YES');
+    }
+
     /** @return string[] */
     #[Computed]
     public function primaryKey(): array
@@ -1105,7 +1260,12 @@ class ResultsPanel extends Component
     {
         $value = $this->gridResult['rows'][$row][$column] ?? null;
 
-        return is_array($value) ? $value['full'] : $value;
+        if (! is_array($value)) {
+            return $value;
+        }
+
+        // Binary cells are hex in the viewer; don't treat that as the raw value.
+        return ($value['blob'] ?? false) ? null : $value['full'];
     }
 
     /**

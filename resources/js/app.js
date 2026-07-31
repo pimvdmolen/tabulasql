@@ -93,6 +93,21 @@ document.addEventListener('alpine:init', () => {
             this.focusedRow = index;
         },
 
+        // Snapshot current column widths so opening a cell editor cannot
+        // reflow the table (TablePlus-style: edit scrolls inside the cell).
+        freezeAllWidths() {
+            if (Object.keys(this.widths).length > 0) {
+                return;
+            }
+
+            const snapshot = {};
+            this.$el.querySelectorAll('thead [data-col]').forEach((cell) => {
+                snapshot[cell.dataset.col] = cell.offsetWidth;
+            });
+            this.widths = snapshot;
+            this.fitted = true;
+        },
+
         rowHighlightClass(index, selected) {
             if (this.focusedRow === index) {
                 return 'bg-sky-500/20 hover:bg-sky-500/20';
@@ -219,6 +234,42 @@ document.addEventListener('alpine:init', () => {
 
             this.widths = next;
             this.fitted = true;
+        },
+    }));
+
+    // HTML5 drag-and-drop list reorder. Usage:
+    //   <div x-data="sortableList({ onReorder: (from, to) => $wire.reorder(from, to) })">
+    //     <div draggable="true" x-on:dragstart="dragStart($event, index)" ...>
+    window.Alpine.data('sortableList', ({ onReorder = null } = {}) => ({
+        dragFrom: null,
+
+        dragStart(event, index) {
+            this.dragFrom = index;
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', String(index));
+            event.currentTarget.classList.add('opacity-50');
+        },
+
+        dragOver(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+        },
+
+        dragEnd(event) {
+            event.currentTarget.classList.remove('opacity-50');
+            this.dragFrom = null;
+        },
+
+        drop(event, toIndex) {
+            event.preventDefault();
+            const fromIndex = this.dragFrom ?? Number.parseInt(event.dataTransfer.getData('text/plain'), 10);
+
+            if (Number.isNaN(fromIndex) || fromIndex === toIndex || onReorder == null) {
+                return;
+            }
+
+            onReorder(fromIndex, toIndex);
+            this.dragFrom = null;
         },
     }));
 });

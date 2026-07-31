@@ -1,5 +1,5 @@
 @php
-    $tabLabels = ['messages' => 'Messages', 'data' => 'Table Data', 'info' => 'Info'];
+    $tabLabels = ['messages' => 'Messages', 'data' => 'Data', 'info' => 'Structure'];
 @endphp
 <div
     class="flex h-full min-h-0 flex-col bg-surface"
@@ -10,33 +10,31 @@
         else if ($event.ctrlKey && $event.key.toLowerCase() === 'f') { $event.preventDefault(); $wire.openFilterDialog(); }
         else if ($event.key === 'F11') { $event.preventDefault(); $wire.$set('activeTab', 'data'); }
         else if ($event.ctrlKey && $event.key.toLowerCase() === 'a' && $wire.activeTab === 'data') { $event.preventDefault(); $wire.selectAllRows(); }
+        else if ($event.key === 'Escape' && $wire.activeTab === 'data') { $event.preventDefault(); $wire.clearRowSelection(); }
         else if (($event.key === 'Delete' || $event.key === 'Backspace') && $wire.activeTab === 'data') { $event.preventDefault(); $wire.confirmDeleteRows(); }
     "
 >
-    {{-- Result tabs; square edges (no rounding), reorder with ◀ ▶ --}}
-    <div class="mt-[5px] flex h-8 shrink-0 items-center gap-px border-b border-edge/60 bg-chrome px-1">
-        @foreach ($tabOrder as $key)
-            <div class="group/tab relative flex h-7 items-stretch">
-                <button
-                    wire:click="$set('activeTab', '{{ $key }}')"
-                    class="border-t-2 px-3 text-[0.78rem]
-                        {{ $activeTab === $key
-                            ? 'border-sky-500 bg-surface text-body'
-                            : 'border-transparent text-muted hover:text-body' }}"
-                >{{ $tabLabels[$key] ?? $key }}</button>
-                <span class="absolute -bottom-5 left-1/2 z-20 hidden -translate-x-1/2 items-center gap-0.5 rounded border border-edge bg-surface p-0.5 shadow group-hover/tab:flex">
-                    <button type="button" wire:click="moveTab('{{ $key }}', 'left')" class="rounded p-0.5 text-muted hover:bg-raised hover:text-body" title="Move left">
-                        <x-icon name="chevron-left" class="size-3" />
-                    </button>
-                    <button type="button" wire:click="moveTab('{{ $key }}', 'right')" class="rounded p-0.5 text-muted hover:bg-raised hover:text-body" title="Move right">
-                        <x-icon name="chevron-right" class="size-3" />
-                    </button>
-                </span>
-            </div>
+    {{-- Result tabs; drag to reorder --}}
+    <div
+        class="mt-[5px] flex h-8 shrink-0 items-center gap-px border-b border-edge/60 bg-chrome px-1"
+        x-data="sortableList({ onReorder: (from, to) => $wire.reorderTabs(from, to) })"
+    >
+        @foreach ($tabOrder as $index => $key)
+            <button
+                type="button"
+                draggable="true"
+                wire:key="result-tab-{{ $key }}"
+                wire:click="$set('activeTab', '{{ $key }}')"
+                x-on:dragstart="dragStart($event, {{ $index }})"
+                x-on:dragover="dragOver($event)"
+                x-on:drop="drop($event, {{ $index }})"
+                x-on:dragend="dragEnd($event)"
+                class="cursor-grab border-t-2 px-3 text-[0.78rem] active:cursor-grabbing
+                    {{ $activeTab === $key
+                        ? 'border-sky-500 bg-surface text-body'
+                        : 'border-transparent text-muted' }}"
+            >{{ $tabLabels[$key] ?? $key }}</button>
         @endforeach
-        @if ($table !== null)
-            <span class="ml-2 truncate text-[0.78rem] text-faint">{{ $database }}.{{ $table }}</span>
-        @endif
         @if ($safeMode)
             <span class="ml-2 inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 text-[0.7rem] text-amber-700 dark:text-amber-400" title="Safe mode: writes require confirmation">
                 <x-icon name="lock" class="size-3" /> Safe
@@ -86,7 +84,7 @@
             @keydown.escape.window="viewer = null"
             @click.self="viewer = null"
         >
-            <div class="flex max-h-[80vh] w-[min(640px,92vw)] flex-col rounded-lg border border-edge bg-surface shadow-xl">
+            <div class="flex max-h-[80vh] w-[min(720px,92vw)] flex-col rounded-lg border border-edge bg-surface shadow-xl">
                 <div class="flex items-center justify-between border-b border-edge/60 px-4 py-2">
                     <span class="text-[0.78rem] font-semibold text-body" x-text="viewer?.title"></span>
                     <button @click="viewer = null" class="rounded px-1.5 text-muted hover:bg-raised hover:text-body">&times;</button>
