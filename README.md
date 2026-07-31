@@ -82,7 +82,7 @@ docker run -d --name dbmanager-test -e MARIADB_ROOT_PASSWORD=secret \
 
 ## Acknowledgements
 
-Big thanks to <a href="https://github.com/businesstilto" target="_blank" rel="noopener noreferrer">Tilto</a> for testing TabulaSQL and providing a lot of valuable feedback.
+Big thanks to [Tilto](https://github.com/businesstilto) for testing TabulaSQL and providing a lot of valuable feedback.
 
 ## Building releases
 
