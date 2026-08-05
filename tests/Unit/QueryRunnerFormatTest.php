@@ -27,7 +27,18 @@ it('collapses long text with size metadata', function () {
         ->and($value['blob'])->toBeFalse()
         ->and($value['size'])->toBe(5000)
         ->and($value['truncated'])->toBeFalse()
-        ->and($value['full'])->toBe($long);
+        ->and($value['full'])->toBe($long)
+        ->and($value['lazy'])->toBeFalse();
+});
+
+it('omits full payload when includeFull is false', function () {
+    $long = str_repeat('x', 5000);
+    $value = formatter()->formatValue($long, includeFull: false);
+
+    expect($value)->toBeArray()
+        ->and($value['full'])->toBeNull()
+        ->and($value['lazy'])->toBeTrue()
+        ->and($value['preview'])->toBe(str_repeat('x', 60));
 });
 
 it('hex-encodes binary values', function () {
@@ -46,4 +57,12 @@ it('truncates values beyond the payload cap', function () {
 
     expect($value['truncated'])->toBeTrue()
         ->and(strlen($value['full']))->toBe(QueryRunner::FULL_LIMIT);
+});
+
+it('detects heavy column types', function () {
+    expect(QueryRunner::isHeavyColumnType('longtext'))->toBeTrue()
+        ->and(QueryRunner::isHeavyColumnType('varchar(255)'))->toBeFalse()
+        ->and(QueryRunner::isHeavyColumnType('json'))->toBeTrue()
+        ->and(QueryRunner::isBlobColumnType('mediumblob'))->toBeTrue()
+        ->and(QueryRunner::isBlobColumnType('text'))->toBeFalse();
 });

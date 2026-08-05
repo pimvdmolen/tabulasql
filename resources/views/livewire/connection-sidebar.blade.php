@@ -56,23 +56,27 @@
                 @endif
                 <span class="hidden shrink-0 gap-0.5 group-hover:flex">
                     <button
+                        x-on:mousedown.stop
                         x-on:click.stop="$wire.duplicateConnection({{ $connection->id }})"
                         class="rounded px-1 text-muted hover:bg-overlay hover:text-body"
                         title="Duplicate"
                     ><x-icon name="copy" class="size-3.5" /></button>
                     <button
+                        x-on:mousedown.stop
                         x-on:click.stop="$wire.$dispatch('edit-connection', { id: {{ $connection->id }} })"
                         class="rounded px-1 text-muted hover:bg-overlay hover:text-body"
                         title="Edit"
                     ><x-icon name="pencil" class="size-3.5" /></button>
                     @if ($isOpen)
                         <button
+                            x-on:mousedown.stop
                             x-on:click.stop="$wire.$dispatch('close-connection', { id: {{ $connection->id }} })"
                             class="rounded px-1 text-muted hover:bg-overlay hover:text-body"
                             title="Close connection"
                         ><x-icon name="x" class="size-3.5" /></button>
                     @else
                         <button
+                            x-on:mousedown.stop
                             x-on:click.stop="$wire.confirmDelete({{ $connection->id }})"
                             class="rounded px-1 text-muted hover:bg-overlay hover:text-red-600 dark:hover:text-red-400"
                             title="Delete"

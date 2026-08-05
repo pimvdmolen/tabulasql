@@ -244,6 +244,12 @@ document.addEventListener('alpine:init', () => {
         dragFrom: null,
 
         dragStart(event, index) {
+            if (event.target.closest('button, a, input, textarea, select, [data-no-drag]')) {
+                event.preventDefault();
+                this.dragFrom = null;
+                return;
+            }
+
             this.dragFrom = index;
             event.dataTransfer.effectAllowed = 'move';
             event.dataTransfer.setData('text/plain', String(index));
@@ -272,4 +278,71 @@ document.addEventListener('alpine:init', () => {
             this.dragFrom = null;
         },
     }));
+});
+
+/**
+ * When the user clicks another table while ResultsPanel is still loading,
+ * Livewire queues the new request behind the old one by default — so you
+ * wait for the slow table even though you already navigated away.
+ *
+ * Cancel the in-flight ResultsPanel message instead; its onFinish then
+ * fires the deferred navigation. The aborted MySQL query may still finish
+ * on the server (PDO can't soft-kill mid-query without KILL QUERY), but the
+ * UI no longer blocks on it.
+ */
+document.addEventListener('livewire:init', () => {
+    /** @type {Map<string, () => void>} */
+    const cancelByComponent = new Map();
+
+    const isResultsPanel = (component) => component?.name === 'results-panel';
+
+    const isTableNavigation = (action) => {
+        if ([
+            'showTable', 'refresh', 'nextPage', 'previousPage', 'sortBy',
+            'unsort', 'applyFilters', 'clearFilters', 'removeFilter', 'quickFilter',
+        ].includes(action.name)) {
+            return true;
+        }
+
+        if (action.name === '__dispatch') {
+            const event = action.params?.[0];
+
+            return event === 'table-selected' || event === 'query-result';
+        }
+
+        return false;
+    };
+
+    Livewire.interceptMessage(({ message, cancel, onFinish }) => {
+        if (! isResultsPanel(message.component)) {
+            return;
+        }
+
+        const id = message.component.id;
+        cancelByComponent.set(id, cancel);
+
+        onFinish(() => {
+            if (cancelByComponent.get(id) === cancel) {
+                cancelByComponent.delete(id);
+            }
+        });
+    });
+
+    // Register after Livewire's built-in queueing interceptor so we see
+    // deferred actions and can cancel whatever is blocking them.
+    Livewire.interceptAction(({ action }) => {
+        if (! isResultsPanel(action.component) || ! isTableNavigation(action)) {
+            return;
+        }
+
+        if (! action.isDeferred()) {
+            return;
+        }
+
+        const cancelPrev = cancelByComponent.get(action.component.id);
+
+        if (cancelPrev) {
+            cancelPrev();
+        }
+    });
 });

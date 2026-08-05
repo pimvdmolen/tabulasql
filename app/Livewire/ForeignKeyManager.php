@@ -136,6 +136,7 @@ class ForeignKeyManager extends Component
         }
 
         app(SchemaExplorer::class)->forgetTable($this->connection(), $this->context['database'], $this->context['table']);
+        app(\App\Services\RelationResolver::class)->forget($this->connection(), $this->context['database'], $this->context['table']);
         $this->dispatch('log', connectionId: $this->context['connectionId'], type: 'success', text: $successMessage);
         $this->load();
     }

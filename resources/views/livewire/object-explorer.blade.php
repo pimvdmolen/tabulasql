@@ -34,25 +34,21 @@
             <div class="m-1 rounded border border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/40 p-2 text-[0.78rem] text-red-700 dark:text-red-300">{{ $error }}</div>
         @endif
 
-        @php $singleDatabase = count($databases) === 1; @endphp
-
         @foreach ($databases as $database)
-            @php $isExpanded = $singleDatabase || in_array($database, $expandedDatabases, true); @endphp
+            @php $isExpanded = in_array($database, $expandedDatabases, true); @endphp
             <div wire:key="db-{{ $database }}">
-                @unless ($singleDatabase)
-                    <button
-                        wire:click="toggleDatabase(@js($database))"
-                        x-on:contextmenu.prevent="$store.ctx.open($event, window.treeDatabaseMenu($wire, { connectionId: {{ $connectionId }}, database: @js($database) }))"
-                        class="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left hover:bg-raised {{ $activeDatabase === $database ? 'text-sky-700 dark:text-sky-300' : 'text-body' }}"
-                    >
-                        <x-icon :name="$isExpanded ? 'chevron-down' : 'chevron-right'" class="size-3 text-muted" />
-                        <x-icon name="database" class="size-3.5 text-amber-500/80" />
-                        <span class="truncate">{{ $database }}</span>
-                    </button>
-                @endunless
+                <button
+                    wire:click="toggleDatabase(@js($database))"
+                    x-on:contextmenu.prevent="$store.ctx.open($event, window.treeDatabaseMenu($wire, { connectionId: {{ $connectionId }}, database: @js($database) }))"
+                    class="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left hover:bg-raised {{ $activeDatabase === $database ? 'text-sky-700 dark:text-sky-300' : 'text-body' }}"
+                >
+                    <x-icon :name="$isExpanded ? 'chevron-down' : 'chevron-right'" class="size-3 text-muted" />
+                    <x-icon name="database" class="size-3.5 text-amber-500/80" />
+                    <span class="truncate">{{ $database }}</span>
+                </button>
 
                 @if ($isExpanded)
-                    <div class="{{ $singleDatabase ? '' : 'ml-4 border-l border-grid pl-1' }}">
+                    <div class="ml-4 border-l border-grid pl-1">
                         @php
                             $items = $this->filteredTables($database);
                             $tables = array_filter($items, fn ($t) => $t['type'] === 'table');

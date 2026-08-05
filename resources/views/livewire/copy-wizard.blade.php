@@ -1,7 +1,13 @@
 <div>
     @if ($context !== null)
-        <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/60" wire:keydown.escape.window="close">
-            <div class="flex max-h-[85vh] w-[min(960px,94vw)] flex-col rounded-lg border border-edge bg-surface shadow-xl">
+        <div
+            class="fixed inset-0 z-40 flex items-center justify-center {{ $confirming ? 'bg-black/70' : 'bg-black/60' }}"
+            @if (! $confirming) wire:keydown.escape.window="close" @endif
+        >
+            <div @class([
+                'flex max-h-[85vh] w-[min(960px,94vw)] flex-col rounded-lg border border-edge bg-surface shadow-xl',
+                'pointer-events-none opacity-40' => $confirming,
+            ]) wire:click.stop>
                 <div class="flex items-center justify-between border-b border-edge/60 px-4 py-3">
                     <div>
                         <div class="text-[0.72rem] font-semibold uppercase tracking-wide text-faint">Source</div>
@@ -80,52 +86,68 @@
 
                     {{-- Right: target + options --}}
                     <div class="flex w-1/2 min-w-0 flex-col gap-3 overflow-y-auto">
-                        <label class="block">
-                            <span class="mb-1 block text-[0.78rem] text-dim">Target connection</span>
-                            <select wire:model.live="targetConnectionId" class="input-field">
-                                <option value="">Choose…</option>
-                                @foreach ($connections as $connection)
-                                    <option value="{{ $connection->id }}">{{ $connection->name }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                        <label class="block">
-                            <span class="mb-1 block text-[0.78rem] text-dim">Target database</span>
-                            <select wire:model="targetDatabase" class="input-field" @disabled($targetDatabases === [])>
-                                <option value="">Choose…</option>
-                                @foreach ($targetDatabases as $database)
-                                    <option value="{{ $database }}">{{ $database }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-
-                        <div class="flex flex-col gap-1.5 text-sm text-body">
-                            <label class="flex items-center gap-2">
-                                <input type="radio" wire:model="withData" value="1" class="border-edge bg-raised">
-                                Structure + data
+                        <div class="space-y-3 rounded border border-edge/60 p-3">
+                            <label class="block">
+                                <span class="mb-1 block text-[0.78rem] text-dim">Target connection</span>
+                                <select wire:model.live="targetConnectionId" class="input-field">
+                                    <option value="">Choose…</option>
+                                    @foreach ($connections as $connection)
+                                        <option value="{{ $connection->id }}">{{ $connection->name }}</option>
+                                    @endforeach
+                                </select>
                             </label>
-                            <label class="flex items-center gap-2">
-                                <input type="radio" wire:model="withData" value="0" class="border-edge bg-raised">
-                                Structure only
+                            <label class="block">
+                                <span class="mb-1 block text-[0.78rem] text-dim">Target database</span>
+                                <select wire:model="targetDatabase" class="input-field" @disabled($targetDatabases === [])>
+                                    <option value="">Choose…</option>
+                                    @foreach ($targetDatabases as $database)
+                                        <option value="{{ $database }}">{{ $database }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+
+                            <div class="flex flex-col gap-1.5 border-t border-edge/40 pt-3 text-sm text-body">
+                                <label class="flex items-center gap-2">
+                                    <input type="radio" wire:model.live="withData" value="1" class="border-edge bg-raised">
+                                    Structure + data
+                                </label>
+                                <label class="flex items-center gap-2">
+                                    <input type="radio" wire:model.live="withData" value="0" class="border-edge bg-raised">
+                                    Structure only
+                                </label>
+                            </div>
+
+                            <label @class([
+                                'mt-1 block border-t border-edge/40 pt-3',
+                                'opacity-40' => ! $withData,
+                            ])>
+                                <span class="mb-1 block text-[0.78rem] text-dim">Batch size (rows)</span>
+                                <select
+                                    wire:model.live="batchSize"
+                                    class="input-field"
+                                    @disabled(! $withData)
+                                >
+                                    @foreach (\App\Services\TableCopier::CHUNK_OPTIONS as $size)
+                                        <option value="{{ $size }}">{{ number_format($size) }}</option>
+                                    @endforeach
+                                </select>
                             </label>
                         </div>
 
-                        <div class="flex flex-col gap-1.5 text-sm text-body">
+                        <div class="flex flex-col gap-1.5 rounded border border-edge/60 p-3 text-sm text-body">
                             <label class="flex items-center gap-2">
-                                <input type="radio" wire:model="conflict" value="skip" class="border-edge bg-raised">
-                                Skip existing objects
+                                <input type="radio" wire:model.live="conflict" value="drop" class="border-edge bg-raised">
+                                Drop &amp; recreate existing
                             </label>
                             <label class="flex items-center gap-2">
-                                <input type="radio" wire:model="conflict" value="drop" class="border-edge bg-raised">
-                                Drop &amp; recreate existing
+                                <input type="radio" wire:model.live="conflict" value="skip" class="border-edge bg-raised">
+                                Skip existing objects
                             </label>
                         </div>
 
                         @if ($error !== null)
                             <div class="rounded border border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/40 px-3 py-2 text-[0.78rem] text-red-700 dark:text-red-300">{{ $error }}</div>
                         @endif
-
-                        <div wire:stream="copy-progress" class="max-h-40 overflow-y-auto rounded border border-grid bg-chrome p-2 font-mono text-xs text-dim empty:hidden"></div>
 
                         @if ($summary !== null)
                             <div class="rounded border px-3 py-2 text-[0.78rem] {{ $summary['failed'] > 0 ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300' : 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300' }}">
@@ -164,15 +186,101 @@
                         {{ $summary !== null ? 'Close' : 'Cancel' }}
                     </button>
                     <button
-                        wire:click="runCopy"
+                        wire:click="askConfirm"
                         wire:loading.attr="disabled"
                         class="rounded bg-sky-600 px-4 py-1.5 text-[0.78rem] font-medium text-white hover:bg-sky-500 disabled:opacity-50"
                     >
-                        <span wire:loading.remove wire:target="runCopy">Copy</span>
-                        <span wire:loading wire:target="runCopy">Copying…</span>
+                        Copy
                     </button>
                 </div>
             </div>
         </div>
+
+        {{-- Confirmation + live progress overlay — full-screen dim over the copy dialog --}}
+        @if ($confirming)
+            <div
+                class="fixed inset-0 z-[60] flex items-center justify-center"
+                wire:click="cancelConfirm"
+                wire:loading.class="pointer-events-none"
+                wire:target="runCopy,fixPacketLimitAndRetry"
+            >
+                <div
+                    class="relative z-10 flex w-[min(560px,92vw)] flex-col rounded-lg border border-edge bg-surface shadow-xl"
+                    wire:click.stop
+                >
+                    {{-- Pre-confirm summary --}}
+                    <div
+                        wire:loading.remove
+                        wire:target="runCopy,fixPacketLimitAndRetry"
+                        class="p-4"
+                        x-on:keydown.escape.window="$wire.cancelConfirm()"
+                    >
+                        <h3 class="text-sm font-semibold text-strong">Confirm copy</h3>
+                        <p class="mt-1 text-[0.78rem] text-dim">
+                            You are going to copy
+                            <span class="font-medium text-body">{{ count($selected) }}</span>
+                            object{{ count($selected) === 1 ? '' : 's' }} from
+                        </p>
+
+                        <div class="my-5 rounded border border-edge/60 px-3 py-3">
+                            <div class="flex items-center gap-3">
+                                <div class="min-w-0 flex-1">
+                                    <div class="truncate text-[0.78rem] text-body" title="{{ $context['connectionName'] }}">
+                                        {{ $context['connectionName'] }}
+                                    </div>
+                                    <div class="truncate font-mono text-[0.78rem] text-sky-700 dark:text-sky-300" title="{{ $context['database'] }}">
+                                        {{ $context['database'] }}
+                                    </div>
+                                </div>
+                                <x-icon name="arrow-right" class="size-3.5 shrink-0 text-faint" />
+                                <div class="min-w-0 flex-1">
+                                    <div class="truncate text-[0.78rem] text-body" title="{{ $targetConnectionName }}">
+                                        {{ $targetConnectionName ?? 'target' }}
+                                    </div>
+                                    <div class="truncate font-mono text-[0.78rem] text-sky-700 dark:text-sky-300" title="{{ $targetDatabase }}">
+                                        {{ $targetDatabase }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-2">
+                            <button
+                                type="button"
+                                wire:click="cancelConfirm"
+                                class="rounded border border-edge px-3 py-1.5 text-[0.78rem] text-body hover:bg-raised"
+                            >Cancel</button>
+                            <button
+                                type="button"
+                                wire:click="runCopy"
+                                class="rounded bg-sky-600 px-4 py-1.5 text-[0.78rem] font-medium text-white hover:bg-sky-500"
+                            >Confirm</button>
+                        </div>
+                    </div>
+
+                    {{-- Live log (kept in DOM while confirming so streams can target it) --}}
+                    <div
+                        class="hidden p-4"
+                        wire:loading.class.remove="hidden"
+                        wire:loading.class="flex flex-col"
+                        wire:target="runCopy,fixPacketLimitAndRetry"
+                    >
+                        <div class="mb-2 text-sm font-semibold text-strong">Copying…</div>
+                        <div
+                            wire:stream="copy-progress"
+                            x-ref="log"
+                            x-data="{
+                                init() {
+                                    const scroll = () => { this.$el.scrollTop = this.$el.scrollHeight; };
+                                    new MutationObserver(scroll).observe(this.$el, { childList: true, subtree: true });
+                                    scroll();
+                                }
+                            }"
+                            class="h-[min(360px,50vh)] overflow-y-auto rounded border border-edge/60 bg-chrome p-2 font-mono text-[0.78rem] leading-5 text-dim"
+                        ></div>
+                    </div>
+                </div>
+            </div>
+        @endif
     @endif
 </div>

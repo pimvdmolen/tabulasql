@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Connection;
+use App\Models\Setting;
 use App\Services\ConnectionManager;
 use App\Services\SchemaExplorer;
 use App\Services\TableCopier;
@@ -30,7 +31,13 @@ class CopyWizard extends Component
 
     public bool $withData = true;
 
-    public string $conflict = 'skip';
+    public string $conflict = 'drop';
+
+    /** Rows fetched per batch when copying table data. */
+    public int $batchSize = 1000;
+
+    /** Confirmation overlay (summary → live logs). */
+    public bool $confirming = false;
 
     public ?array $summary = null;
 
@@ -46,6 +53,7 @@ class CopyWizard extends Component
     public function open(int $connectionId, string $database, array $objects): void
     {
         $this->reset();
+        $this->restorePreferences();
 
         $connection = Connection::findOrFail($connectionId);
         $explorer = app(SchemaExplorer::class);
@@ -63,6 +71,36 @@ class CopyWizard extends Component
             ],
         ];
         $this->selected = array_column($objects, 'name');
+    }
+
+    private function restorePreferences(): void
+    {
+        $this->withData = (bool) Setting::get('copy_with_data', true);
+        $conflict = Setting::get('copy_conflict', 'drop');
+        $this->conflict = in_array($conflict, ['skip', 'drop'], true) ? $conflict : 'drop';
+        $batch = (int) Setting::get('copy_batch_size', TableCopier::CHUNK_ROWS);
+        $this->batchSize = in_array($batch, TableCopier::CHUNK_OPTIONS, true) ? $batch : TableCopier::CHUNK_ROWS;
+    }
+
+    public function updatedWithData(mixed $value): void
+    {
+        Setting::set('copy_with_data', (bool) $value);
+    }
+
+    public function updatedConflict(string $value): void
+    {
+        if (in_array($value, ['skip', 'drop'], true)) {
+            Setting::set('copy_conflict', $value);
+        }
+    }
+
+    public function updatedBatchSize(mixed $value): void
+    {
+        $batch = (int) $value;
+        if (in_array($batch, TableCopier::CHUNK_OPTIONS, true)) {
+            $this->batchSize = $batch;
+            Setting::set('copy_batch_size', $batch);
+        }
     }
 
     /**
@@ -122,7 +160,10 @@ class CopyWizard extends Component
         }
     }
 
-    public function runCopy(): void
+    /**
+     * Validate options and open the confirmation overlay.
+     */
+    public function askConfirm(): void
     {
         $this->error = null;
         $this->summary = null;
@@ -148,6 +189,43 @@ class CopyWizard extends Component
             return;
         }
 
+        $this->confirming = true;
+    }
+
+    public function cancelConfirm(): void
+    {
+        $this->confirming = false;
+    }
+
+    public function runCopy(): void
+    {
+        $this->error = null;
+        $this->summary = null;
+
+        if ($this->context === null || $this->targetConnectionId === null || ! $this->targetDatabase) {
+            $this->error = 'Choose a target connection and database.';
+            $this->confirming = false;
+
+            return;
+        }
+
+        if ($this->selected === []) {
+            $this->error = 'Select at least one object.';
+            $this->confirming = false;
+
+            return;
+        }
+
+        $source = Connection::findOrFail($this->context['connectionId']);
+        $target = Connection::findOrFail($this->targetConnectionId);
+
+        if ($source->id === $target->id && $this->context['database'] === $this->targetDatabase) {
+            $this->error = 'Source and target are the same database.';
+            $this->confirming = false;
+
+            return;
+        }
+
         $this->stream(to: 'copy-progress', content: '', replace: true);
 
         try {
@@ -167,9 +245,11 @@ class CopyWizard extends Component
                     content: '<div>'.e($message).'</div>',
                     replace: false,
                 ),
+                chunkRows: $this->batchSize,
             );
         } catch (Throwable $e) {
             $this->error = $e->getMessage();
+            $this->confirming = false;
 
             return;
         }
@@ -185,6 +265,8 @@ class CopyWizard extends Component
                 $this->summary['failed'], $this->summary['rows']
             ),
         );
+
+        $this->confirming = false;
     }
 
     /**
@@ -220,7 +302,11 @@ class CopyWizard extends Component
 
         $this->selected = array_keys($this->summary['packetTooLarge']);
         $this->conflict = 'drop';
-        $this->runCopy();
+        Setting::set('copy_conflict', 'drop');
+        // Open the progress overlay first, then start the copy on the next
+        // tick so the wire:stream target is in the DOM.
+        $this->confirming = true;
+        $this->js('queueMicrotask(() => $wire.runCopy())');
     }
 
     public function close(): void
@@ -228,10 +314,20 @@ class CopyWizard extends Component
         $this->reset();
     }
 
+    public function targetConnectionName(): ?string
+    {
+        if ($this->targetConnectionId === null) {
+            return null;
+        }
+
+        return Connection::find($this->targetConnectionId)?->name;
+    }
+
     public function render()
     {
         return view('livewire.copy-wizard', [
             'connections' => $this->context === null ? collect() : Connection::orderBy('name')->get(),
+            'targetConnectionName' => $this->targetConnectionName(),
         ]);
     }
 }

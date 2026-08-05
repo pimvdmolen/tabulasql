@@ -23,10 +23,15 @@ class QueryRunner
     /**
      * Run a single statement and return a structured result.
      *
+     * Long/binary cell bodies are stashed under `_fulls` (rowIndex:column =>
+     * payload) so the Livewire HTML grid only receives previews. Callers that
+     * need the body (viewer, copy, export) read `_fulls` or re-fetch.
+     *
      * @return array{
      *     ok: bool, error: ?string, columns: string[],
      *     rows: array<int, array<string, mixed>>, row_count: int,
-     *     affected: int, duration_ms: int, is_select: bool
+     *     affected: int, duration_ms: int, is_select: bool,
+     *     _fulls: array<string, string>
      * }
      */
     public function run(Connection $connection, ?string $database, string $sql, array $bindings = [], bool $log = true): array
@@ -48,10 +53,29 @@ class QueryRunner
             $durationMs = (int) ((hrtime(true) - $start) / 1_000_000);
 
             $columns = $rows === [] ? [] : array_keys((array) $rows[0]);
-            $formatted = array_map(fn ($row) => array_map(
-                fn ($value) => $this->formatValue($value),
-                (array) $row
-            ), $rows);
+            $fulls = [];
+            $formatted = [];
+
+            foreach ($rows as $rowIndex => $row) {
+                $formattedRow = [];
+
+                foreach ((array) $row as $column => $value) {
+                    $cell = $this->formatValue($value, includeFull: true);
+
+                    if (is_array($cell)) {
+                        if (($cell['full'] ?? null) !== null) {
+                            $fulls["$rowIndex:$column"] = $cell['full'];
+                        }
+                        // Keep the grid HTML tiny — bodies live in `_fulls`.
+                        $cell['full'] = null;
+                        $cell['lazy'] = true;
+                    }
+
+                    $formattedRow[$column] = $cell;
+                }
+
+                $formatted[] = $formattedRow;
+            }
 
             if ($log) {
                 $this->record($connection, $database, $sql, $durationMs, $isSelect ? count($rows) : $affected);
@@ -66,6 +90,7 @@ class QueryRunner
                 'affected' => $affected,
                 'duration_ms' => $durationMs,
                 'is_select' => $isSelect,
+                '_fulls' => $fulls,
             ];
         } catch (Throwable $e) {
             $durationMs = (int) ((hrtime(true) - $start) / 1_000_000);
@@ -79,6 +104,7 @@ class QueryRunner
                 'affected' => 0,
                 'duration_ms' => $durationMs,
                 'is_select' => false,
+                '_fulls' => [],
             ];
         }
     }
@@ -88,9 +114,13 @@ class QueryRunner
      *
      * Scalars pass through; NULL stays null; binary or oversized values
      * become ['blob' => true|false, 'size' => int, 'preview' => string,
-     * 'full' => ?string, 'truncated' => bool].
+     * 'full' => ?string, 'lazy' => bool, 'truncated' => bool].
+     *
+     * When $includeFull is false (grid path), `full` is omitted from the
+     * payload so Livewire/HTML stays small; the caller can stash bodies
+     * separately or re-fetch on demand.
      */
-    public function formatValue(mixed $value): mixed
+    public function formatValue(mixed $value, bool $includeFull = true): mixed
     {
         if ($value === null || is_int($value) || is_float($value) || is_bool($value)) {
             return $value;
@@ -113,9 +143,27 @@ class QueryRunner
             'preview' => $isBinary
                 ? strtoupper(bin2hex(substr($value, 0, 16)))
                 : mb_substr($value, 0, 60, 'UTF-8'),
-            'full' => $isBinary ? strtoupper(bin2hex($slice)) : $slice,
+            'full' => $includeFull ? ($isBinary ? strtoupper(bin2hex($slice)) : $slice) : null,
+            'lazy' => ! $includeFull,
             'truncated' => $truncated,
         ];
+    }
+
+    /**
+     * True for column types that are expensive to transfer in a browse grid
+     * (TEXT / BLOB / JSON). Those should be truncated at the SQL layer.
+     */
+    public static function isHeavyColumnType(string $type): bool
+    {
+        return (bool) preg_match('/\b(tiny|medium|long)?(blob|text)\b|\bjson\b/i', $type);
+    }
+
+    /**
+     * True for binary BLOB types (as opposed to TEXT/JSON).
+     */
+    public static function isBlobColumnType(string $type): bool
+    {
+        return (bool) preg_match('/\b(tiny|medium|long)?blob\b/i', $type);
     }
 
     /**

@@ -49,7 +49,10 @@ class ResultsPanel extends Component
 
     public int $firstRow = 0;
 
-    public int $rowCount = 500;
+    public int $rowCount = 100;
+
+    /** Draft value while a lazy (long/text) cell is being edited. */
+    public ?string $editingDraft = null;
 
     public ?string $sortColumn = null;
 
@@ -284,8 +287,14 @@ class ResultsPanel extends Component
      */
     private function invalidateGrid(): void
     {
+        Cache::forget($this->gridCacheKey());
         $this->version++;
-        unset($this->gridResult, $this->tableInfo);
+        unset($this->gridResult, $this->tableInfo, $this->foreignKeys);
+    }
+
+    private function gridCacheKey(): string
+    {
+        return "tabula.grid.{$this->connectionId}.{$this->version}";
     }
 
     public function sortBy(string $column): void
@@ -456,17 +465,70 @@ class ResultsPanel extends Component
             return;
         }
 
+        if (is_array($value) && (($value['lazy'] ?? false) || ($value['full'] ?? null) === null)) {
+            $fetched = $this->resolveCellBody($row, $column);
+            $this->editingDraft = $fetched === null ? null : (string) $fetched;
+        } elseif (is_array($value)) {
+            $this->editingDraft = (string) ($value['full'] ?? $value['preview'] ?? '');
+        } else {
+            $this->editingDraft = $value === null ? null : (string) $value;
+        }
+
         $this->editingCell = ['row' => $row, 'col' => $column];
     }
 
     public function cancelEditCell(): void
     {
         $this->editingCell = null;
+        $this->editingDraft = null;
+    }
+
+    /**
+     * Load a long/binary cell body for the viewer (called from Alpine).
+     *
+     * @return array{title: string, content: string, note: ?string, blob: bool}
+     */
+    public function loadCellValue(int $row, string $column): array
+    {
+        $meta = $this->gridResult['rows'][$row][$column] ?? null;
+        $isBlob = is_array($meta) && ($meta['blob'] ?? false);
+        $size = is_array($meta) ? (int) ($meta['size'] ?? 0) : 0;
+
+        $body = $this->resolveCellBody($row, $column);
+
+        if ($isBlob) {
+            $raw = is_string($body) ? $body : '';
+            // Body from `_fulls` is already hex; from DB fetch it's binary.
+            $fromFulls = $this->gridResult['_fulls']["$row:$column"] ?? null;
+            $content = $fromFulls ?? strtoupper(bin2hex(substr($raw, 0, QueryRunner::FULL_LIMIT)));
+            $truncated = $size > QueryRunner::FULL_LIMIT || (is_string($body) && strlen($body) > QueryRunner::FULL_LIMIT);
+
+            return [
+                'title' => $column.', binary, '.\App\Support\Bytes::format($size ?: strlen($raw)),
+                'content' => $content,
+                'note' => $truncated ? 'Value truncated to 64 KB for display.' : 'Hex representation.',
+                'blob' => true,
+            ];
+        }
+
+        $text = $body === null ? '' : (string) $body;
+        $truncated = strlen($text) > QueryRunner::FULL_LIMIT;
+        if ($truncated) {
+            $text = substr($text, 0, QueryRunner::FULL_LIMIT);
+        }
+
+        return [
+            'title' => $column.', '.\App\Support\Bytes::format($size ?: strlen($text)),
+            'content' => $text,
+            'note' => $truncated ? 'Value truncated to 64 KB for display.' : null,
+            'blob' => false,
+        ];
     }
 
     public function setCellValue(int $row, string $column, ?string $value): void
     {
         $this->editingCell = null;
+        $this->editingDraft = null;
 
         $current = $this->rawCell($row, $column);
         // Form inputs always submit a string (or '' for a blank/NULL cell),
@@ -495,6 +557,7 @@ class ResultsPanel extends Component
             default => DataEditor::DEFAULT,
         };
         $this->editingCell = null;
+        $this->editingDraft = null;
     }
 
     public function cancelChanges(): void
@@ -765,16 +828,23 @@ class ResultsPanel extends Component
         $values = [];
 
         foreach ($columns as $column) {
-            $raw = $this->gridResult['rows'][$row][$column] ?? null;
+            $raw = $result['rows'][$row][$column] ?? null;
 
             if ($raw === null) {
                 $values[] = 'NULL';
-            } elseif (is_array($raw) && $raw['blob']) {
-                $values[] = '0x'.$raw['full'];
+            } elseif (is_array($raw) && ($raw['blob'] ?? false)) {
+                $hex = $result['_fulls']["$row:$column"] ?? null;
+                if ($hex === null) {
+                    $body = $this->resolveCellBody($row, $column);
+                    $hex = is_string($body) ? strtoupper(bin2hex($body)) : '';
+                }
+                $values[] = '0x'.$hex;
             } elseif (is_int($raw) || is_float($raw)) {
                 $values[] = (string) $raw;
             } else {
-                $value = is_array($raw) ? $raw['full'] : $raw;
+                $value = is_array($raw)
+                    ? ($result['_fulls']["$row:$column"] ?? $this->resolveCellBody($row, $column) ?? '')
+                    : $raw;
                 $values[] = "'".addslashes((string) $value)."'";
             }
         }
@@ -847,8 +917,22 @@ class ResultsPanel extends Component
             }
 
             $rows = array_map(
-                fn ($row) => array_map(fn ($value) => is_array($value) ? $value['full'] : $value, $row),
-                $result['rows']
+                function ($row, $rowIndex) use ($result) {
+                    $out = [];
+                    foreach ($row as $column => $value) {
+                        if (! is_array($value)) {
+                            $out[$column] = $value;
+                        } elseif ($value['blob'] ?? false) {
+                            $out[$column] = $result['_fulls']["$rowIndex:$column"] ?? null;
+                        } else {
+                            $out[$column] = $result['_fulls']["$rowIndex:$column"] ?? $value['preview'] ?? null;
+                        }
+                    }
+
+                    return $out;
+                },
+                $result['rows'],
+                array_keys($result['rows'])
             );
 
             return [$result['columns'], $rows];
@@ -1036,9 +1120,23 @@ class ResultsPanel extends Component
             return null;
         }
 
+        return Cache::remember($this->gridCacheKey(), 120, fn () => $this->fetchTableGrid());
+    }
+
+    /**
+     * Browse a table with SQL-level truncation for TEXT/BLOB/JSON columns so
+     * MySQL never ships multi-KB bodies for hundreds of rows. Full values are
+     * fetched on demand via resolveCellBody().
+     */
+    private function fetchTableGrid(): array
+    {
         $explorer = app(SchemaExplorer::class);
+        $connection = $this->connection();
+        $columns = $explorer->columns($connection, $this->database, $this->table);
         $target = $explorer->quote($this->database).'.'.$explorer->quote($this->table);
-        $sql = "SELECT * FROM $target";
+
+        [$selectList, $heavy] = $this->browseSelectList($explorer, $columns);
+        $sql = "SELECT $selectList FROM $target";
         $bindings = [];
 
         if ($this->filters !== []) {
@@ -1059,18 +1157,135 @@ class ResultsPanel extends Component
             $sql .= sprintf(' LIMIT %d, %d', $this->firstRow, $this->rowCount);
         }
 
-        $result = app(QueryRunner::class)->run($this->connection(), $this->database, $sql, $bindings, log: false);
+        $start = hrtime(true);
 
-        if ($result['ok']) {
-            $this->log('success', sprintf(
-                '%d row(s) fetched from `%s`.`%s` in %s ms.',
-                $result['row_count'], $this->database, $this->table, $result['duration_ms']
-            ));
-        } else {
-            $this->log('error', $result['error']);
+        try {
+            $rawRows = app(\App\Services\ConnectionManager::class)
+                ->db($connection, $this->database)
+                ->select($sql, $bindings);
+        } catch (Throwable $e) {
+            $durationMs = (int) ((hrtime(true) - $start) / 1_000_000);
+            $this->log('error', preg_replace('/\s*\((Connection|SQL):.*\)\s*$/s', '', $e->getMessage()) ?? $e->getMessage());
+
+            return [
+                'ok' => false,
+                'error' => $e->getMessage(),
+                'columns' => [],
+                'rows' => [],
+                'row_count' => 0,
+                'affected' => 0,
+                'duration_ms' => $durationMs,
+                'is_select' => true,
+                '_fulls' => [],
+            ];
         }
 
-        return $result;
+        $durationMs = (int) ((hrtime(true) - $start) / 1_000_000);
+        $columnNames = array_column($columns, 'name');
+        $runner = app(QueryRunner::class);
+        $formatted = [];
+
+        foreach ($rawRows as $raw) {
+            $raw = (array) $raw;
+            $row = [];
+
+            foreach ($columns as $col) {
+                $name = $col['name'];
+                $value = $raw[$name] ?? null;
+
+                if (! isset($heavy[$name])) {
+                    $row[$name] = $runner->formatValue($value, includeFull: false);
+                    continue;
+                }
+
+                if ($value === null && ! array_key_exists('__len__'.$name, $raw)) {
+                    $row[$name] = null;
+                    continue;
+                }
+
+                // MySQL returns NULL for the preview when the column is NULL;
+                // OCTET_LENGTH of NULL is also NULL.
+                if ($value === null && ($raw['__len__'.$name] ?? null) === null) {
+                    $row[$name] = null;
+                    continue;
+                }
+
+                $size = (int) ($raw['__len__'.$name] ?? 0);
+                $isBlob = $heavy[$name] === 'blob';
+
+                if (! $isBlob && $size <= QueryRunner::INLINE_LIMIT && is_string($value)) {
+                    $row[$name] = $runner->formatValue($value, includeFull: false);
+                    continue;
+                }
+
+                $row[$name] = [
+                    'blob' => $isBlob,
+                    'size' => $size,
+                    'preview' => $isBlob
+                        ? ''
+                        : mb_substr((string) $value, 0, 60, 'UTF-8'),
+                    'full' => null,
+                    'lazy' => true,
+                    'truncated' => $size > QueryRunner::INLINE_LIMIT,
+                ];
+            }
+
+            $formatted[] = $row;
+        }
+
+        $this->log('success', sprintf(
+            '%d row(s) fetched from `%s`.`%s` in %s ms.',
+            count($formatted), $this->database, $this->table, $durationMs
+        ));
+
+        return [
+            'ok' => true,
+            'error' => null,
+            'columns' => $columnNames,
+            'rows' => $formatted,
+            'row_count' => count($formatted),
+            'affected' => 0,
+            'duration_ms' => $durationMs,
+            'is_select' => true,
+            '_fulls' => [],
+        ];
+    }
+
+    /**
+     * Build a SELECT list that truncates heavy columns at the server.
+     *
+     * @param  array<int, array{name: string, type: string}>  $columns
+     * @return array{0: string, 1: array<string, 'blob'|'text'>}
+     */
+    private function browseSelectList(SchemaExplorer $explorer, array $columns): array
+    {
+        $parts = [];
+        $heavy = [];
+
+        foreach ($columns as $column) {
+            $name = $column['name'];
+            $quoted = $explorer->quote($name);
+            $type = $column['type'] ?? '';
+
+            if (! QueryRunner::isHeavyColumnType($type)) {
+                $parts[] = $quoted;
+                continue;
+            }
+
+            if (QueryRunner::isBlobColumnType($type)) {
+                // Never pull BLOB bytes into the grid — size only.
+                $parts[] = "IF($quoted IS NULL, NULL, '') AS $quoted";
+                $parts[] = "OCTET_LENGTH($quoted) AS ".$explorer->quote('__len__'.$name);
+                $heavy[$name] = 'blob';
+            } else {
+                $limit = QueryRunner::INLINE_LIMIT;
+                $parts[] = "LEFT($quoted, $limit) AS $quoted";
+                $parts[] = "OCTET_LENGTH($quoted) AS ".$explorer->quote('__len__'.$name);
+                $heavy[$name] = 'text';
+            }
+        }
+
+        return [implode(', ', $parts) ?: '*', $heavy];
     }
 
     #[Computed]
@@ -1083,12 +1298,21 @@ class ResultsPanel extends Component
         $explorer = app(SchemaExplorer::class);
 
         try {
-            return [
+            $info = [
                 'columns' => $explorer->columns($this->connection(), $this->database, $this->table),
-                'indexes' => $explorer->indexes($this->connection(), $this->database, $this->table),
-                'ddl' => $explorer->ddl($this->connection(), $this->database, $this->table),
+                'indexes' => [],
+                'ddl' => '',
                 'error' => null,
             ];
+
+            // Indexes + DDL are only needed on the Structure tab — skip them
+            // when opening Data so the first paint isn't blocked on SHOW CREATE.
+            if ($this->activeTab === 'info') {
+                $info['indexes'] = $explorer->indexes($this->connection(), $this->database, $this->table);
+                $info['ddl'] = $explorer->ddl($this->connection(), $this->database, $this->table);
+            }
+
+            return $info;
         } catch (Throwable $e) {
             return ['columns' => [], 'indexes' => [], 'ddl' => '', 'error' => $e->getMessage()];
         }
@@ -1222,7 +1446,14 @@ class ResultsPanel extends Component
         }
 
         try {
-            return app(SchemaExplorer::class)->primaryKey($this->connection(), $this->database, $this->table);
+            // Prefer columns() (already fetched for the browse SELECT) over a
+            // separate KEY_COLUMN_USAGE round-trip — matters over SSH.
+            $columns = app(SchemaExplorer::class)->columns($this->connection(), $this->database, $this->table);
+
+            return array_values(array_map(
+                static fn (array $column) => $column['name'],
+                array_filter($columns, static fn (array $column) => ($column['key'] ?? '') === 'PRI'),
+            ));
         } catch (Throwable) {
             return [];
         }
@@ -1265,7 +1496,94 @@ class ResultsPanel extends Component
         }
 
         // Binary cells are hex in the viewer; don't treat that as the raw value.
-        return ($value['blob'] ?? false) ? null : $value['full'];
+        if ($value['blob'] ?? false) {
+            return null;
+        }
+
+        return $this->resolveCellBody($row, $column);
+    }
+
+    /**
+     * Resolve the full body of a (possibly lazy) cell: prefer the `_fulls`
+     * sidecar from QueryRunner, otherwise re-fetch from MySQL by primary key
+     * (or by the same LIMIT offset as the grid row).
+     */
+    private function resolveCellBody(int $row, string $column): mixed
+    {
+        $result = $this->gridResult;
+        $cached = $result['_fulls']["$row:$column"] ?? null;
+
+        if ($cached !== null) {
+            $meta = $result['rows'][$row][$column] ?? null;
+            // Sidecar for blobs from QueryRunner is already hex — decode for callers
+            // that expect raw bytes only when we know it's from a non-browse path.
+            if (is_array($meta) && ($meta['blob'] ?? false)) {
+                return $cached;
+            }
+
+            return $cached;
+        }
+
+        if ($this->mode !== 'table' || $this->database === null || $this->table === null) {
+            $meta = $result['rows'][$row][$column] ?? null;
+
+            return is_array($meta) ? ($meta['preview'] ?? null) : $meta;
+        }
+
+        $explorer = app(SchemaExplorer::class);
+        $target = $explorer->quote($this->database).'.'.$explorer->quote($this->table);
+        $qCol = $explorer->quote($column);
+        $bindings = [];
+
+        try {
+            if ($this->primaryKey !== []) {
+                $clauses = [];
+
+                foreach ($this->primaryKey as $pk) {
+                    $pkValue = $result['rows'][$row][$pk] ?? null;
+                    if (is_array($pkValue)) {
+                        $pkValue = $result['_fulls']["$row:$pk"] ?? $pkValue['preview'] ?? null;
+                    }
+
+                    if ($pkValue === null) {
+                        $clauses[] = $explorer->quote($pk).' IS NULL';
+                    } else {
+                        $clauses[] = $explorer->quote($pk).' = ?';
+                        $bindings[] = $pkValue;
+                    }
+                }
+
+                $sql = "SELECT $qCol FROM $target WHERE ".implode(' AND ', $clauses).' LIMIT 1';
+            } else {
+                $sql = "SELECT $qCol FROM $target";
+
+                if ($this->filters !== []) {
+                    $built = app(FilterBuilder::class)->build($this->filters);
+                    $sql .= ' WHERE '.$built['where'];
+                    $bindings = $built['bindings'];
+                }
+
+                if ($this->sortColumn !== null) {
+                    $sql .= ' ORDER BY '.$explorer->quote($this->sortColumn).' '.($this->sortDirection === 'desc' ? 'DESC' : 'ASC');
+                }
+
+                $sql .= sprintf(' LIMIT %d, 1', $this->firstRow + $row);
+            }
+
+            $dbRow = app(\App\Services\ConnectionManager::class)
+                ->db($this->connection(), $this->database)
+                ->selectOne($sql, $bindings);
+
+            if ($dbRow === null) {
+                return null;
+            }
+
+            return ((array) $dbRow)[$column] ?? null;
+        } catch (Throwable) {
+            $meta = $result['rows'][$row][$column] ?? null;
+
+            return is_array($meta) ? ($meta['preview'] ?? null) : $meta;
+        }
     }
 
     /**
@@ -1286,6 +1604,7 @@ class ResultsPanel extends Component
     {
         $this->pendingEdits = [];
         $this->editingCell = null;
+        $this->editingDraft = null;
         $this->selectedRows = [];
         $this->showInsertDialog = false;
         $this->insertValues = [];

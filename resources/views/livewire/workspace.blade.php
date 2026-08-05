@@ -37,15 +37,17 @@
             @endforelse
         </div>
 
-        <div class="ml-2 flex max-w-[min(520px,48vw)] shrink-0 items-center gap-1.5 px-2 py-0.5 text-[0.72rem] leading-snug text-amber-700 dark:text-amber-400">
+        <div class="ml-2 flex max-w-[min(520px,48vw)] shrink-0 items-center gap-1.5 px-2 py-0.5 text-[0.72rem] leading-snug text-dim">
             <a
                 href="https://buymeacoffee.com/pimvdmolen"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="truncate hover:underline hover:text-amber-600 dark:hover:text-amber-300"
+                class="inline-flex min-w-0 items-center gap-1.5 truncate hover:text-body hover:underline"
                 title="Buy me a coffee"
-            >This software is completely free. Please buy me a coffee for support</a>
-            <x-icon name="coffee" class="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+            >
+                <span class="truncate">This software is completely free. Please buy me a coffee for support</span>
+                <x-icon name="coffee" class="size-4 shrink-0 text-muted" />
+            </a>
         </div>
 
         <div class="ml-1 shrink-0 border-l border-edge/60 pl-1">

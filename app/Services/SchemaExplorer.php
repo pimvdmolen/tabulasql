@@ -71,6 +71,27 @@ class SchemaExplorer
     }
 
     /**
+     * Table/view names only. Cached — used for FK convention matching where
+     * row estimates are irrelevant and a full TABLES scan on every grid paint
+     * is too expensive over SSH.
+     *
+     * @return string[]
+     */
+    public function tableNames(Connection $connection, string $database): array
+    {
+        return Cache::remember($this->key($connection, $database, null, 'tableNames'), self::TTL, function () use ($connection, $database) {
+            return array_column(
+                $this->manager->db($connection)->select(
+                    'SELECT TABLE_NAME AS name FROM information_schema.TABLES
+                     WHERE TABLE_SCHEMA = ? ORDER BY TABLE_NAME',
+                    [$database]
+                ),
+                'name'
+            );
+        });
+    }
+
+    /**
      * Stored procedure names in a database. Not cached, same reasoning as
      * tables(): this backs the tree listing and should reflect a
      * just-created/dropped procedure immediately.
@@ -327,6 +348,7 @@ class SchemaExplorer
     public function forgetDatabase(Connection $connection, string $database): void
     {
         Cache::forget($this->key($connection, $database, null, 'allColumns'));
+        Cache::forget($this->key($connection, $database, null, 'tableNames'));
     }
 
     /**

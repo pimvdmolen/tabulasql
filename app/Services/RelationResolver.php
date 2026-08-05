@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Connection;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Detects foreign key relations, real constraints plus Laravel-style
@@ -10,6 +11,8 @@ use App\Models\Connection;
  */
 class RelationResolver
 {
+    private const TTL = 300;
+
     /** @var array<string, array> */
     private array $cache = [];
 
@@ -31,6 +34,18 @@ class RelationResolver
             return $this->cache[$cacheKey];
         }
 
+        $map = Cache::remember("relations.fk.{$connection->id}.$database.$table", self::TTL, function () use ($connection, $database, $table) {
+            return $this->resolveForeignKeys($connection, $database, $table);
+        });
+
+        return $this->cache[$cacheKey] = $map;
+    }
+
+    /**
+     * @return array<string, array{database: string, table: string, column: string, convention: bool}>
+     */
+    private function resolveForeignKeys(Connection $connection, string $database, string $table): array
+    {
         $map = [];
 
         $rows = $this->manager->db($connection)->select(
@@ -52,8 +67,7 @@ class RelationResolver
 
         // Convention detection: xxx_id -> table `xxxs` or `xxx` with an `id`
         // column, in the same database.
-        $tables = array_column($this->explorer->tables($connection, $database), 'name');
-        $tableSet = array_flip($tables);
+        $tableSet = array_flip($this->explorer->tableNames($connection, $database));
 
         foreach ($this->explorer->columns($connection, $database, $table) as $column) {
             $name = $column['name'];
@@ -89,7 +103,16 @@ class RelationResolver
             }
         }
 
-        return $this->cache[$cacheKey] = $map;
+        return $map;
+    }
+
+    /**
+     * Bust cached FK maps for a table (call after DDL that changes FKs).
+     */
+    public function forget(Connection $connection, string $database, string $table): void
+    {
+        unset($this->cache["{$connection->id}.$database.$table"]);
+        Cache::forget("relations.fk.{$connection->id}.$database.$table");
     }
 
     /**
@@ -113,6 +136,6 @@ class RelationResolver
 
         $runner = app(QueryRunner::class);
 
-        return array_map(fn ($column) => $runner->formatValue($column), (array) $row);
+        return array_map(fn ($column) => $runner->formatValue($column, includeFull: true), (array) $row);
     }
 }

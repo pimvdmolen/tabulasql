@@ -16,6 +16,9 @@ class TableCopier
 {
     public const CHUNK_ROWS = 1000;
 
+    /** Allowed batch sizes exposed in the copy wizard. */
+    public const CHUNK_OPTIONS = [100, 500, 1000, 2500];
+
     /** Copy order: tables/views first, then routines, triggers last (they need their table to already exist). */
     private const TYPE_RANK = ['table' => 0, 'view' => 1, 'procedure' => 2, 'function' => 2, 'event' => 2, 'trigger' => 3];
 
@@ -44,7 +47,9 @@ class TableCopier
         bool $withData,
         string $conflict = 'skip',
         ?callable $progress = null,
+        int $chunkRows = self::CHUNK_ROWS,
     ): array {
+        $chunkRows = max(1, $chunkRows);
         $report = fn (string $message) => $progress === null ? null : $progress($message);
 
         $sourceDb = $this->manager->db($source, $sourceDatabase);
@@ -84,7 +89,7 @@ class TableCopier
                 $report("Created $label.");
 
                 if ($withData && $type === 'table') {
-                    $rows = $this->copyData($sourceDb, $targetDb, $sourceDatabase, $name, $report);
+                    $rows = $this->copyData($sourceDb, $targetDb, $sourceDatabase, $name, $report, $chunkRows);
                     $summary['rows'] += $rows;
                 }
 
@@ -171,7 +176,7 @@ class TableCopier
         return $ddl;
     }
 
-    private function copyData($sourceDb, $targetDb, string $sourceDatabase, string $table, callable $report): int
+    private function copyData($sourceDb, $targetDb, string $sourceDatabase, string $table, callable $report, int $chunkRows): int
     {
         $quotedSource = $this->explorer->quote($sourceDatabase).'.'.$this->explorer->quote($table);
         $quotedTable = $this->explorer->quote($table);
@@ -179,7 +184,7 @@ class TableCopier
         $total = 0;
 
         while (true) {
-            $rows = $sourceDb->select(sprintf('SELECT * FROM %s LIMIT %d, %d', $quotedSource, $offset, self::CHUNK_ROWS));
+            $rows = $sourceDb->select(sprintf('SELECT * FROM %s LIMIT %d, %d', $quotedSource, $offset, $chunkRows));
 
             if ($rows === []) {
                 break;
@@ -198,11 +203,11 @@ class TableCopier
             $total += count($rows);
             $report("  `$table`: $total row(s) copied…");
 
-            if (count($rows) < self::CHUNK_ROWS) {
+            if (count($rows) < $chunkRows) {
                 break;
             }
 
-            $offset += self::CHUNK_ROWS;
+            $offset += $chunkRows;
         }
 
         return $total;

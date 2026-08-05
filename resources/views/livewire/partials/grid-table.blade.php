@@ -83,9 +83,9 @@
                     <td class="border border-grid px-1 py-0.5 text-center" wire:click.stop>
                         <input
                             type="checkbox"
-                            wire:model.live="selectedRows"
-                            value="{{ $rowIndex }}"
-                            x-on:click="if ($event.shiftKey) { $event.preventDefault(); $wire.toggleRowSelection({{ $rowIndex }}, true); }"
+                            wire:key="select-row-{{ $version }}-{{ $rowIndex }}"
+                            @checked(isset($selectedLookup[(string) $rowIndex]))
+                            x-on:click.prevent="$wire.toggleRowSelection({{ $rowIndex }}, $event.shiftKey)"
                         >
                     </td>
                 @endif
@@ -101,8 +101,9 @@
                         $isBlob = is_array($value) && ($value['blob'] ?? false);
                         $isLongText = is_array($value) && ! $isBlob;
                         $displayValue = $isLongText ? ($value['preview'] ?? '') : $value;
-                        $editValue = $isLongText ? ($value['full'] ?? '') : $value;
+                        $editValue = $isEditing ? $editingDraft : ($isLongText ? ($value['full'] ?? $value['preview'] ?? '') : $value);
                         $canEditCell = $editable && ! $isBlob;
+                        $isLazy = is_array($value) && (($value['lazy'] ?? false) || (($value['full'] ?? null) === null && ($isLongText || $isBlob)));
                     @endphp
                     <td
                         @if ($canEditCell)
@@ -165,12 +166,13 @@
                                 <span class="italic text-faint">(NULL)</span>
                             @elseif ($isBlob)
                                 <button
+                                    type="button"
                                     class="inline-flex cursor-pointer items-center gap-1 rounded bg-raised px-1.5 py-0.5 text-left text-dim"
-                                    @click.stop="viewer = {
-                                        title: @js($column.', binary, '.\App\Support\Bytes::format($value['size'])),
-                                        content: @js($value['full']),
-                                        note: @js($value['truncated'] ? 'Value truncated to 64 KB for display.' : 'Hex representation.'),
-                                    }"
+                                    @click.stop="
+                                        $wire.loadCellValue({{ $rowIndex }}, @js($column)).then((result) => {
+                                            viewer = { title: result.title, content: result.content, note: result.note };
+                                        })
+                                    "
                                 >
                                     <x-icon name="file" class="size-3" />
                                     {{ \App\Support\Bytes::format($value['size']) }}
@@ -181,22 +183,17 @@
                                     class="block max-w-full truncate text-left"
                                     title="Click to view full value ({{ \App\Support\Bytes::format($value['size']) }})"
                                     @click.stop="
-                                        (() => {
-                                            const raw = @js($value['full']);
-                                            let content = raw;
-                                            let note = @js($value['truncated'] ? 'Value truncated to 64 KB for display.' : null);
+                                        $wire.loadCellValue({{ $rowIndex }}, @js($column)).then((result) => {
+                                            let content = result.content;
+                                            let note = result.note;
                                             try {
-                                                content = JSON.stringify(JSON.parse(raw), null, 2);
+                                                content = JSON.stringify(JSON.parse(content), null, 2);
                                                 note = note ? note + ' Pretty-printed JSON.' : 'Pretty-printed JSON.';
                                             } catch (e) {}
-                                            viewer = {
-                                                title: @js($column.', '.\App\Support\Bytes::format($value['size'])),
-                                                content,
-                                                note,
-                                            };
-                                        })()
+                                            viewer = { title: result.title, content, note };
+                                        })
                                     "
-                                >{{ $displayValue }}{{ ($value['truncated'] ?? false) || strlen($value['full'] ?? '') > 60 ? '…' : '' }}</button>
+                                >{{ $displayValue }}{{ ($value['truncated'] ?? false) || $isLazy || mb_strlen((string) $displayValue) >= 60 ? '…' : '' }}</button>
                             @else
                                 {{ $value }}
                             @endif
