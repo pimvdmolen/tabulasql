@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "1a687813955384d33db5c5ee77899078",
+    "content-hash": "d014ef6c15fa19091ff987e37f7cc479",
     "packages": [
         {
             "name": "brick/math",
@@ -2272,16 +2272,16 @@
         },
         {
             "name": "nativephp/desktop",
-            "version": "2.3.0",
+            "version": "2.2.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/desktop.git",
-                "reference": "f430efff3352cd0b8d41d6df1bad27e97df332a3"
+                "reference": "552cdd71a21eda6f8dba4a3189249fbf69a14bb0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/desktop/zipball/f430efff3352cd0b8d41d6df1bad27e97df332a3",
-                "reference": "f430efff3352cd0b8d41d6df1bad27e97df332a3",
+                "url": "https://api.github.com/repos/NativePHP/desktop/zipball/552cdd71a21eda6f8dba4a3189249fbf69a14bb0",
+                "reference": "552cdd71a21eda6f8dba4a3189249fbf69a14bb0",
                 "shasum": ""
             },
             "require": {
@@ -2324,7 +2324,7 @@
                         "Window": "Native\\Desktop\\Facades\\Window",
                         "MenuBar": "Native\\Desktop\\Facades\\MenuBar",
                         "Process": "Native\\Desktop\\Facades\\Process",
-                        "Updater": "Native\\Desktop\\Drivers\\Electron\\Facades\\Updater",
+                        "Updater": "Native\\Electron\\Facades\\Updater",
                         "Settings": "Native\\Desktop\\Facades\\Settings",
                         "Clipboard": "Native\\Desktop\\Facades\\Clipboard",
                         "ContextMenu": "Native\\Desktop\\Facades\\ContextMenu",
@@ -2361,7 +2361,7 @@
                 }
             ],
             "description": "NativePHP for Desktop",
-            "homepage": "https://github.com/NativePHP/desktop",
+            "homepage": "https://github.com/nativephp/laravel",
             "keywords": [
                 "desktop",
                 "laravel",
@@ -2370,7 +2370,7 @@
             ],
             "support": {
                 "issues": "https://github.com/NativePHP/desktop/issues",
-                "source": "https://github.com/NativePHP/desktop/tree/2.3.0"
+                "source": "https://github.com/NativePHP/desktop/tree/2.2.1"
             },
             "funding": [
                 {
@@ -2382,7 +2382,7 @@
                     "type": "opencollective"
                 }
             ],
-            "time": "2026-09-05T18:45:58+00:00"
+            "time": "2026-05-29T04:56:41+00:00"
         },
         {
             "name": "nativephp/php-bin",
@@ -3706,16 +3706,16 @@
         },
         {
             "name": "symfony/console",
-            "version": "v8.1.6",
+            "version": "v8.1.7",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/console.git",
-                "reference": "eb7d9957d66739649e931ce7a9d05dab69f8abac"
+                "reference": "29afb89f4e941f68a6e90f28e3f52ff1f6793a7d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/console/zipball/eb7d9957d66739649e931ce7a9d05dab69f8abac",
-                "reference": "eb7d9957d66739649e931ce7a9d05dab69f8abac",
+                "url": "https://api.github.com/repos/symfony/console/zipball/29afb89f4e941f68a6e90f28e3f52ff1f6793a7d",
+                "reference": "29afb89f4e941f68a6e90f28e3f52ff1f6793a7d",
                 "shasum": ""
             },
             "require": {
@@ -3782,7 +3782,7 @@
                 "terminal"
             ],
             "support": {
-                "source": "https://github.com/symfony/console/tree/v8.1.6"
+                "source": "https://github.com/symfony/console/tree/v8.1.7"
             },
             "funding": [
                 {
@@ -3802,7 +3802,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-08-25T14:18:42+00:00"
+            "time": "2026-09-13T10:55:57+00:00"
         },
         {
             "name": "symfony/css-selector",
@@ -5598,16 +5598,16 @@
         },
         {
             "name": "symfony/process",
-            "version": "v8.1.6",
+            "version": "v8.1.7",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/process.git",
-                "reference": "d863f5e70d7c87abb906ac11b61f83036093000b"
+                "reference": "10823b09358e690df4ff943e24e8492bb1019fc3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/process/zipball/d863f5e70d7c87abb906ac11b61f83036093000b",
-                "reference": "d863f5e70d7c87abb906ac11b61f83036093000b",
+                "url": "https://api.github.com/repos/symfony/process/zipball/10823b09358e690df4ff943e24e8492bb1019fc3",
+                "reference": "10823b09358e690df4ff943e24e8492bb1019fc3",
                 "shasum": ""
             },
             "require": {
@@ -5639,7 +5639,7 @@
             "description": "Executes commands in sub-processes",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/process/tree/v8.1.6"
+                "source": "https://github.com/symfony/process/tree/v8.1.7"
             },
             "funding": [
                 {
@@ -5659,7 +5659,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-08-21T17:47:34+00:00"
+            "time": "2026-09-02T12:40:29+00:00"
         },
         {
             "name": "symfony/routing",
@@ -5830,16 +5830,16 @@
         },
         {
             "name": "symfony/string",
-            "version": "v8.1.2",
+            "version": "v8.1.7",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/string.git",
-                "reference": "286a76b7255e5cc4bf0101a0bc5388ecf1c38ccc"
+                "reference": "d950140b5f56f31901e5b7a0c04ffc3a3deb943c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/string/zipball/286a76b7255e5cc4bf0101a0bc5388ecf1c38ccc",
-                "reference": "286a76b7255e5cc4bf0101a0bc5388ecf1c38ccc",
+                "url": "https://api.github.com/repos/symfony/string/zipball/d950140b5f56f31901e5b7a0c04ffc3a3deb943c",
+                "reference": "d950140b5f56f31901e5b7a0c04ffc3a3deb943c",
                 "shasum": ""
             },
             "require": {
@@ -5896,7 +5896,7 @@
                 "utf8"
             ],
             "support": {
-                "source": "https://github.com/symfony/string/tree/v8.1.2"
+                "source": "https://github.com/symfony/string/tree/v8.1.7"
             },
             "funding": [
                 {
@@ -5916,7 +5916,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-07-28T07:35:25+00:00"
+            "time": "2026-09-11T14:51:16+00:00"
         },
         {
             "name": "symfony/translation",
