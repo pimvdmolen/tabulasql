@@ -48,7 +48,54 @@ class ConnectionManager
             $port = $this->tunnels->ensure($connection);
         }
 
-        $config = [
+        $config = $this->buildConfig($connection, $host, $port, $database);
+
+        // Purge so a database switch or tunnel port change takes effect.
+        if (config("database.connections.$name") !== $config) {
+            config(["database.connections.$name" => $config]);
+            DB::purge($name);
+        }
+
+        return $name;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildConfig(Connection $connection, string $host, int $port, ?string $database): array
+    {
+        $driver = $connection->driverName();
+
+        if ($driver === 'sqlite') {
+            $path = $connection->host !== '' ? $connection->host : ($database ?? ':memory:');
+
+            return [
+                'driver' => 'sqlite',
+                'database' => $path,
+                'prefix' => '',
+                'foreign_key_constraints' => true,
+            ];
+        }
+
+        if ($driver === 'pgsql') {
+            return [
+                'driver' => 'pgsql',
+                'host' => $host,
+                'port' => $port,
+                'database' => $database ?: 'postgres',
+                'username' => $connection->username,
+                'password' => $connection->password ?? '',
+                'charset' => 'utf8',
+                'prefix' => '',
+                'schema' => 'public',
+                'sslmode' => 'prefer',
+                'options' => [
+                    PDO::ATTR_TIMEOUT => 10,
+                ],
+            ];
+        }
+
+        return [
             'driver' => 'mysql',
             'host' => $host,
             'port' => $port,
@@ -63,14 +110,6 @@ class ConnectionManager
                 PDO::ATTR_TIMEOUT => 10,
             ],
         ];
-
-        // Purge so a database switch or tunnel port change takes effect.
-        if (config("database.connections.$name") !== $config) {
-            config(["database.connections.$name" => $config]);
-            DB::purge($name);
-        }
-
-        return $name;
     }
 
     /**
@@ -107,7 +146,11 @@ class ConnectionManager
     {
         try {
             $db = $this->db($connection);
-            $version = $db->selectOne('SELECT VERSION() AS v')->v;
+            $version = match ($connection->driverName()) {
+                'pgsql' => $db->selectOne('SELECT version() AS v')->v,
+                'sqlite' => $db->selectOne('SELECT sqlite_version() AS v')->v,
+                default => $db->selectOne('SELECT VERSION() AS v')->v,
+            };
 
             return ['ok' => true, 'message' => "Connected successfully (server version $version).", 'version' => $version];
         } catch (Throwable $e) {

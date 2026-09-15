@@ -42,4 +42,21 @@ class Connection extends Model
     {
         return $this->hasMany(QueryHistory::class);
     }
+
+    public function savedQueries(): HasMany
+    {
+        return $this->hasMany(SavedQuery::class);
+    }
+
+    public function driverName(): string
+    {
+        $driver = $this->driver ?? 'mysql';
+
+        return in_array($driver, ['mysql', 'pgsql', 'sqlite'], true) ? $driver : 'mysql';
+    }
+
+    public function isMysql(): bool
+    {
+        return $this->driverName() === 'mysql';
+    }
 }

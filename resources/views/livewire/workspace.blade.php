@@ -121,6 +121,9 @@
     <livewire:create-database-dialog />
     <livewire:index-manager />
     <livewire:foreign-key-manager />
+    <livewire:command-palette />
+    <livewire:er-diagram />
+    <livewire:user-manager />
 
     {{-- App-wide context menu --}}
     <div

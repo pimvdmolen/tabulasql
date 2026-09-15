@@ -5,12 +5,54 @@
             Select a table in the Object Explorer, or run a query.
         </div>
     @elseif ($mode === 'query')
-        <div class="flex shrink-0 items-center gap-3 border-b border-grid px-2 py-1 text-[0.78rem] text-dim">
+        @php
+            $explain = $this->explainPlan;
+            $chart = $this->chartData;
+        @endphp
+        <div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-grid px-2 py-1 text-[0.78rem] text-dim">
             <span class="font-semibold">Query result</span>
+            @if ($result !== null && $result['ok'] && $result['row_count'] > 0)
+                <button
+                    wire:click="toggleChart"
+                    class="rounded border border-edge px-2 py-0.5 hover:bg-raised hover:text-body {{ $showChart ? 'bg-raised text-body' : '' }}"
+                    title="Simple bar chart from numeric columns"
+                >Chart</button>
+            @endif
+            @if ($explain !== null)
+                <button
+                    wire:click="$toggle('showExplainTree')"
+                    class="rounded border border-edge px-2 py-0.5 hover:bg-raised hover:text-body"
+                    title="Toggle explain plan vs raw grid"
+                >{{ $showExplainTree ? 'Raw grid' : 'Explain plan' }}</button>
+            @endif
             @if ($result !== null && $result['ok'])
                 <span class="ml-auto text-muted">{{ $result['row_count'] }} row(s) · {{ $result['duration_ms'] }} ms</span>
             @endif
         </div>
+        @if ($showChart && ($chart['ok'] ?? false))
+            <div class="shrink-0 border-b border-grid bg-chrome/40 px-3 py-2">
+                <div class="mb-1 text-[0.72rem] text-muted">
+                    {{ $chart['label_column'] }} vs {{ $chart['value_column'] }}
+                </div>
+                @php
+                    $maxVal = max(array_map(fn ($p) => (float) ($p['value'] ?? 0), $chart['points'] ?? [1])) ?: 1;
+                @endphp
+                <div class="flex max-h-40 flex-col gap-0.5 overflow-y-auto">
+                    @foreach ($chart['points'] ?? [] as $point)
+                        @php $pct = min(100, round(((float) $point['value'] / $maxVal) * 100)); @endphp
+                        <div class="flex items-center gap-2 text-[0.68rem]">
+                            <span class="w-28 shrink-0 truncate text-muted" title="{{ $point['label'] }}">{{ $point['label'] }}</span>
+                            <div class="h-3 min-w-0 flex-1 rounded bg-edge">
+                                <div class="h-full rounded bg-sky-600/80" style="width: {{ $pct }}%"></div>
+                            </div>
+                            <span class="w-14 shrink-0 text-right font-mono text-body">{{ $point['value'] }}</span>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @elseif ($showChart && $chart !== null && ! ($chart['ok'] ?? true))
+            <div class="shrink-0 border-b border-grid px-3 py-1 text-[0.72rem] text-amber-700 dark:text-amber-400">{{ $chart['error'] ?? 'Cannot chart this result.' }}</div>
+        @endif
         <div class="min-h-0 flex-1 overflow-auto">
             @if ($result === null)
                 <div class="p-4 text-sm text-faint">The result expired. Run the query again.</div>
@@ -18,6 +60,8 @@
                 <div class="m-2 rounded border border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/40 p-3 font-mono text-[0.78rem] text-red-700 dark:text-red-300">{{ $result['error'] }}</div>
             @elseif ($result['row_count'] === 0)
                 <div class="p-4 text-sm text-faint">No rows.</div>
+            @elseif ($explain !== null && $showExplainTree)
+                @include('livewire.partials.explain-plan')
             @else
                 @include('livewire.partials.grid-table', ['result' => $result, 'sortable' => false, 'editable' => false, 'gridKey' => 'query-'.($queryResultKey ?? 'none')])
             @endif
@@ -63,6 +107,9 @@
                 <span class="h-4 w-px bg-edge"></span>
                 <button wire:click="openInsertDialog" class="inline-flex items-center gap-1 rounded border border-edge px-2 py-0.5 hover:bg-raised hover:text-body {{ $showInsertDialog ? 'bg-raised text-body' : '' }}" title="Insert new row">
                     <x-icon name="plus" class="size-3.5" /> Row
+                </button>
+                <button wire:click="openClipboardDialog" class="inline-flex items-center gap-1 rounded border border-edge px-2 py-0.5 hover:bg-raised hover:text-body {{ $showClipboardDialog ? 'bg-raised text-body' : '' }}" title="Import rows from clipboard">
+                    Import clipboard…
                 </button>
                 @if ($selectedRows !== [])
                     <button wire:click="confirmDeleteRows" class="inline-flex items-center gap-1 rounded border border-red-400 dark:border-red-700 px-2 py-0.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40">

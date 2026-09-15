@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Connection;
 use InvalidArgumentException;
 
 /**
@@ -16,10 +17,12 @@ class FilterBuilder
     ];
 
     /**
+     * @param  Connection|callable(string): string|null  $quoter
      * @return array{where: string, bindings: array}
      */
-    public function build(array $rules): array
+    public function build(array $rules, Connection|callable|null $quoter = null): array
     {
+        $quoteColumn = $this->quoteColumnFn($quoter);
         $clauses = [];
         $bindings = [];
 
@@ -31,7 +34,7 @@ class FilterBuilder
                 throw new InvalidArgumentException("Invalid filter rule on '$column' ($operator).");
             }
 
-            $quoted = '`'.str_replace('`', '``', $column).'`';
+            $quoted = $quoteColumn($column);
 
             switch ($operator) {
                 case 'IS NULL':
@@ -67,6 +70,25 @@ class FilterBuilder
             'where' => implode(' AND ', $clauses),
             'bindings' => $bindings,
         ];
+    }
+
+    /**
+     * @param  Connection|callable(string): string|null  $quoter
+     * @return callable(string): string
+     */
+    private function quoteColumnFn(Connection|callable|null $quoter): callable
+    {
+        if (is_callable($quoter)) {
+            return $quoter;
+        }
+
+        if ($quoter instanceof Connection) {
+            $explorer = app(SchemaExplorer::class);
+
+            return fn (string $column) => $explorer->quote($column, $quoter);
+        }
+
+        return fn (string $column) => '`'.str_replace('`', '``', $column).'`';
     }
 
     /**

@@ -3,6 +3,28 @@ import { registerContextMenu } from './context-menu';
 
 const splitterStorageKey = (key) => `tabula:splitter:${key}`;
 
+window.__tabulaCookie = {
+    get(name) {
+        const prefix = `${encodeURIComponent(name)}=`;
+        for (const part of document.cookie.split(';')) {
+            const trimmed = part.trim();
+            if (trimmed.startsWith(prefix)) {
+                try {
+                    return decodeURIComponent(trimmed.slice(prefix.length));
+                } catch {
+                    return trimmed.slice(prefix.length);
+                }
+            }
+        }
+
+        return '';
+    },
+    set(name, value, days = 365) {
+        const maxAge = Math.max(0, Math.floor(days * 86400));
+        document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)};path=/;max-age=${maxAge};samesite=lax`;
+    },
+};
+
 function readSplitterSize(key, initial, min, max) {
     if (!key) {
         return initial;

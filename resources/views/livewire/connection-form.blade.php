@@ -10,6 +10,16 @@
                 </div>
 
                 <div class="space-y-3 px-4 py-4">
+                    <label class="block">
+                        <span class="mb-1 block text-[0.78rem] text-dim">Driver</span>
+                        <select wire:model.live="driver" class="input-field">
+                            <option value="mysql">MySQL / MariaDB</option>
+                            <option value="pgsql">PostgreSQL</option>
+                            <option value="sqlite">SQLite</option>
+                        </select>
+                        @error('driver') <span class="mt-1 block text-[0.78rem] text-red-600 dark:text-red-400">{{ $message }}</span> @enderror
+                    </label>
+
                     <div class="flex gap-3">
                         <label class="block flex-1">
                             <span class="mb-1 block text-[0.78rem] text-dim">Name</span>
@@ -22,107 +32,117 @@
                         </label>
                     </div>
 
-                    <div class="flex gap-3">
-                        <label class="block flex-1">
-                            <span class="mb-1 block text-[0.78rem] text-dim">Host</span>
-                            <input type="text" wire:model="host" class="input-field" placeholder="localhost">
+                    @if ($driver === 'sqlite')
+                        <label class="block">
+                            <span class="mb-1 block text-[0.78rem] text-dim">Database file path</span>
+                            <input type="text" wire:model="host" class="input-field" placeholder="/path/to/database.sqlite">
                             @error('host') <span class="mt-1 block text-[0.78rem] text-red-600 dark:text-red-400">{{ $message }}</span> @enderror
                         </label>
-                        <label class="block w-24">
-                            <span class="mb-1 block text-[0.78rem] text-dim">Port</span>
-                            <input type="number" wire:model="port" class="input-field">
-                        </label>
-                    </div>
+                    @else
+                        <div class="flex gap-3">
+                            <label class="block flex-1">
+                                <span class="mb-1 block text-[0.78rem] text-dim">Host</span>
+                                <input type="text" wire:model="host" class="input-field" placeholder="localhost">
+                                @error('host') <span class="mt-1 block text-[0.78rem] text-red-600 dark:text-red-400">{{ $message }}</span> @enderror
+                            </label>
+                            <label class="block w-24">
+                                <span class="mb-1 block text-[0.78rem] text-dim">Port</span>
+                                <input type="number" wire:model="port" class="input-field">
+                            </label>
+                        </div>
 
-                    <div class="flex gap-3">
-                        <label class="block flex-1">
-                            <span class="mb-1 block text-[0.78rem] text-dim">Username</span>
-                            <input type="text" wire:model="username" class="input-field">
-                            @error('username') <span class="mt-1 block text-[0.78rem] text-red-600 dark:text-red-400">{{ $message }}</span> @enderror
-                        </label>
-                        <label class="block flex-1">
-                            <span class="mb-1 block text-[0.78rem] text-dim">Password</span>
-                            <input type="password" wire:model="password" class="input-field" autocomplete="new-password">
-                        </label>
-                    </div>
-
-                    <label class="block">
-                        <span class="mb-1 block text-[0.78rem] text-dim">
-                            Database <span class="text-faint">(optional, restricts the tree to just this database)</span>
-                        </span>
-                        <input type="text" wire:model.live.debounce.300ms="database" class="input-field" placeholder="e.g. my_database">
-                        @error('database') <span class="mt-1 block text-[0.78rem] text-red-600 dark:text-red-400">{{ $message }}</span> @enderror
-                    </label>
-
-                    @if (trim($database) === '')
-                        <label class="block">
-                            <span class="mb-1 block text-[0.78rem] text-dim">Default database <span class="text-faint">(optional, just pre-opens it in the tree)</span></span>
-                            <input type="text" wire:model="default_database" class="input-field">
-                        </label>
+                        <div class="flex gap-3">
+                            <label class="block flex-1">
+                                <span class="mb-1 block text-[0.78rem] text-dim">Username</span>
+                                <input type="text" wire:model="username" class="input-field">
+                                @error('username') <span class="mt-1 block text-[0.78rem] text-red-600 dark:text-red-400">{{ $message }}</span> @enderror
+                            </label>
+                            <label class="block flex-1">
+                                <span class="mb-1 block text-[0.78rem] text-dim">Password</span>
+                                <input type="password" wire:model="password" class="input-field" autocomplete="new-password">
+                            </label>
+                        </div>
                     @endif
 
-                    <label class="flex items-center gap-2 pt-1">
-                        <input type="checkbox" wire:model.live="use_ssh" class="rounded border-edge bg-raised">
-                        <span class="text-sm text-body">Connect through SSH tunnel</span>
-                    </label>
+                    @if ($driver !== 'sqlite')
+                        <label class="block">
+                            <span class="mb-1 block text-[0.78rem] text-dim">
+                                Database <span class="text-faint">(optional, restricts the tree to just this database)</span>
+                            </span>
+                            <input type="text" wire:model.live.debounce.300ms="database" class="input-field" placeholder="e.g. my_database">
+                            @error('database') <span class="mt-1 block text-[0.78rem] text-red-600 dark:text-red-400">{{ $message }}</span> @enderror
+                        </label>
 
-                    @if ($use_ssh)
-                        <div class="space-y-3 rounded border border-edge/60 bg-chrome/50 p-3">
-                            <div class="flex gap-3">
-                                <label class="block flex-1">
-                                    <span class="mb-1 block text-[0.78rem] text-dim">SSH host</span>
-                                    <input type="text" wire:model="ssh_host" class="input-field">
-                                    @error('ssh_host') <span class="mt-1 block text-[0.78rem] text-red-600 dark:text-red-400">{{ $message }}</span> @enderror
-                                </label>
-                                <label class="block w-24">
-                                    <span class="mb-1 block text-[0.78rem] text-dim">SSH port</span>
-                                    <input type="number" wire:model="ssh_port" class="input-field">
-                                </label>
+                        @if (trim($database) === '')
+                            <label class="block">
+                                <span class="mb-1 block text-[0.78rem] text-dim">Default database <span class="text-faint">(optional, just pre-opens it in the tree)</span></span>
+                                <input type="text" wire:model="default_database" class="input-field">
+                            </label>
+                        @endif
+
+                        <label class="flex items-center gap-2 pt-1">
+                            <input type="checkbox" wire:model.live="use_ssh" class="rounded border-edge bg-raised">
+                            <span class="text-sm text-body">Connect through SSH tunnel</span>
+                        </label>
+
+                        @if ($use_ssh)
+                            <div class="space-y-3 rounded border border-edge/60 bg-chrome/50 p-3">
+                                <div class="flex gap-3">
+                                    <label class="block flex-1">
+                                        <span class="mb-1 block text-[0.78rem] text-dim">SSH host</span>
+                                        <input type="text" wire:model="ssh_host" class="input-field">
+                                        @error('ssh_host') <span class="mt-1 block text-[0.78rem] text-red-600 dark:text-red-400">{{ $message }}</span> @enderror
+                                    </label>
+                                    <label class="block w-24">
+                                        <span class="mb-1 block text-[0.78rem] text-dim">SSH port</span>
+                                        <input type="number" wire:model="ssh_port" class="input-field">
+                                    </label>
+                                </div>
+                                <div class="flex gap-3">
+                                    <label class="block flex-1">
+                                        <span class="mb-1 block text-[0.78rem] text-dim">SSH user</span>
+                                        <input type="text" wire:model="ssh_username" class="input-field">
+                                        @error('ssh_username') <span class="mt-1 block text-[0.78rem] text-red-600 dark:text-red-400">{{ $message }}</span> @enderror
+                                    </label>
+                                    <label class="block flex-1">
+                                        <span class="mb-1 block text-[0.78rem] text-dim">Authentication</span>
+                                        <select wire:model.live="ssh_auth_type" class="input-field">
+                                            <option value="password">Password</option>
+                                            <option value="key">Private key</option>
+                                        </select>
+                                    </label>
+                                </div>
+                                @if ($ssh_auth_type === 'password')
+                                    <label class="block">
+                                        <span class="mb-1 block text-[0.78rem] text-dim">SSH password</span>
+                                        <input type="password" wire:model="ssh_password" class="input-field" autocomplete="new-password">
+                                    </label>
+                                @else
+                                    <label class="block">
+                                        <span class="mb-1 block text-[0.78rem] text-dim">Private key path</span>
+                                        <div class="flex gap-2">
+                                            <input type="text" wire:model="ssh_key_path" class="input-field" placeholder="/home/username/.ssh/id_ed25519">
+                                            <button
+                                                type="button"
+                                                wire:click="browseForPrivateKey"
+                                                wire:loading.attr="disabled"
+                                                wire:target="browseForPrivateKey"
+                                                class="shrink-0 rounded border border-edge px-3 text-[0.78rem] text-body hover:bg-raised disabled:opacity-50"
+                                            >
+                                                <span wire:loading.remove wire:target="browseForPrivateKey">Browse…</span>
+                                                <span wire:loading wire:target="browseForPrivateKey">Waiting…</span>
+                                            </button>
+                                        </div>
+                                        <span class="mt-1 block text-[0.7rem] text-faint">
+                                            Select the private key itself (e.g. <code>/home/username/.ssh/id_ed25519</code> or <code>/home/username/.ssh/id_rsa</code>), not the matching <code>.pub</code> file.
+                                        </span>
+                                        @if ($browseMessage !== null)
+                                            <span class="mt-1 block text-[0.7rem] text-amber-600 dark:text-amber-400">{{ $browseMessage }}</span>
+                                        @endif
+                                    </label>
+                                @endif
                             </div>
-                            <div class="flex gap-3">
-                                <label class="block flex-1">
-                                    <span class="mb-1 block text-[0.78rem] text-dim">SSH user</span>
-                                    <input type="text" wire:model="ssh_username" class="input-field">
-                                    @error('ssh_username') <span class="mt-1 block text-[0.78rem] text-red-600 dark:text-red-400">{{ $message }}</span> @enderror
-                                </label>
-                                <label class="block flex-1">
-                                    <span class="mb-1 block text-[0.78rem] text-dim">Authentication</span>
-                                    <select wire:model.live="ssh_auth_type" class="input-field">
-                                        <option value="password">Password</option>
-                                        <option value="key">Private key</option>
-                                    </select>
-                                </label>
-                            </div>
-                            @if ($ssh_auth_type === 'password')
-                                <label class="block">
-                                    <span class="mb-1 block text-[0.78rem] text-dim">SSH password</span>
-                                    <input type="password" wire:model="ssh_password" class="input-field" autocomplete="new-password">
-                                </label>
-                            @else
-                                <label class="block">
-                                    <span class="mb-1 block text-[0.78rem] text-dim">Private key path</span>
-                                    <div class="flex gap-2">
-                                        <input type="text" wire:model="ssh_key_path" class="input-field" placeholder="/home/username/.ssh/id_ed25519">
-                                        <button
-                                            type="button"
-                                            wire:click="browseForPrivateKey"
-                                            wire:loading.attr="disabled"
-                                            wire:target="browseForPrivateKey"
-                                            class="shrink-0 rounded border border-edge px-3 text-[0.78rem] text-body hover:bg-raised disabled:opacity-50"
-                                        >
-                                            <span wire:loading.remove wire:target="browseForPrivateKey">Browse…</span>
-                                            <span wire:loading wire:target="browseForPrivateKey">Waiting…</span>
-                                        </button>
-                                    </div>
-                                    <span class="mt-1 block text-[0.7rem] text-faint">
-                                        Select the private key itself (e.g. <code>/home/username/.ssh/id_ed25519</code> or <code>/home/username/.ssh/id_rsa</code>), not the matching <code>.pub</code> file.
-                                    </span>
-                                    @if ($browseMessage !== null)
-                                        <span class="mt-1 block text-[0.7rem] text-amber-600 dark:text-amber-400">{{ $browseMessage }}</span>
-                                    @endif
-                                </label>
-                            @endif
-                        </div>
+                        @endif
                     @endif
 
                     @if ($testResult !== null)

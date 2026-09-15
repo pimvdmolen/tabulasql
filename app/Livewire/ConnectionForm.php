@@ -19,6 +19,8 @@ class ConnectionForm extends Component
 
     public string $name = '';
 
+    public string $driver = 'mysql';
+
     public ?string $color = null;
 
     public string $host = 'localhost';
@@ -71,6 +73,7 @@ class ConnectionForm extends Component
         $this->resetForm();
         $this->connectionId = $connection->id;
         $this->name = $connection->name;
+        $this->driver = $connection->driverName();
         $this->color = $connection->color;
         $this->host = $connection->host;
         $this->port = $connection->port;
@@ -86,6 +89,34 @@ class ConnectionForm extends Component
         $this->database = $connection->database ?? '';
         $this->default_database = $connection->default_database ?? '';
         $this->open = true;
+    }
+
+    public function updatedDriver(string $value): void
+    {
+        if (! in_array($value, ['mysql', 'pgsql', 'sqlite'], true)) {
+            return;
+        }
+
+        $this->port = match ($value) {
+            'pgsql' => 5432,
+            'sqlite' => 0,
+            default => 3306,
+        };
+
+        if ($value === 'sqlite') {
+            $this->use_ssh = false;
+            $this->username = $this->username === 'root' ? '' : $this->username;
+            if ($this->host === 'localhost') {
+                $this->host = '';
+            }
+        } else {
+            if ($this->host === '') {
+                $this->host = 'localhost';
+            }
+            if ($this->username === '') {
+                $this->username = 'root';
+            }
+        }
     }
 
     /**
@@ -173,12 +204,15 @@ class ConnectionForm extends Component
 
     protected function rules(): array
     {
+        $sqlite = $this->driver === 'sqlite';
+
         return [
             'name' => ['required', 'string', 'max:100', Rule::unique('connections', 'name')->ignore($this->connectionId)],
+            'driver' => ['required', 'in:mysql,pgsql,sqlite'],
             'color' => ['nullable', 'string', 'max:20'],
             'host' => ['required', 'string', 'max:255'],
-            'port' => ['required', 'integer', 'between:1,65535'],
-            'username' => ['required', 'string', 'max:255'],
+            'port' => $sqlite ? ['nullable', 'integer', 'between:0,65535'] : ['required', 'integer', 'between:1,65535'],
+            'username' => $sqlite ? ['nullable', 'string', 'max:255'] : ['required', 'string', 'max:255'],
             'password' => ['nullable', 'string'],
             'use_ssh' => ['boolean'],
             'ssh_host' => ['required_if:use_ssh,true', 'nullable', 'string', 'max:255'],
@@ -196,12 +230,13 @@ class ConnectionForm extends Component
     {
         return [
             'name' => $this->name,
+            'driver' => $this->driver,
             'color' => $this->color ?: null,
             'host' => $this->host,
-            'port' => $this->port,
-            'username' => $this->username,
+            'port' => $this->driver === 'sqlite' ? max(0, (int) $this->port) : $this->port,
+            'username' => $this->driver === 'sqlite' ? ($this->username ?: '') : $this->username,
             'password' => $this->password === '' ? null : $this->password,
-            'use_ssh' => $this->use_ssh,
+            'use_ssh' => $this->driver === 'sqlite' ? false : $this->use_ssh,
             'ssh_host' => $this->ssh_host ?: null,
             'ssh_port' => $this->ssh_port,
             'ssh_username' => $this->ssh_username ?: null,

@@ -55,6 +55,45 @@
 
     @include('livewire.partials.record-dialog')
 
+    @if ($showClipboardDialog)
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60" wire:click="closeClipboardDialog">
+            <div class="flex max-h-[85vh] w-[min(640px,92vw)] flex-col rounded-lg border border-edge bg-surface shadow-xl" wire:click.stop>
+                <div class="flex items-center justify-between border-b border-edge/60 px-4 py-2">
+                    <h3 class="text-sm font-semibold text-strong">Import from clipboard</h3>
+                    <button wire:click="closeClipboardDialog" class="rounded px-1.5 text-muted hover:bg-raised hover:text-body">&times;</button>
+                </div>
+                <p class="px-4 pt-3 text-[0.78rem] text-dim">Paste CSV, TSV, or JSON rows. Columns are matched by header name when present.</p>
+                <textarea
+                    wire:model="clipboardText"
+                    class="mx-4 my-2 min-h-40 flex-1 resize-y rounded border border-edge bg-chrome p-2 font-mono text-[0.72rem] text-body"
+                    placeholder="Paste data here…"
+                ></textarea>
+                @if ($clipboardError)
+                    <p class="px-4 text-[0.78rem] text-red-600 dark:text-red-400">{{ $clipboardError }}</p>
+                @endif
+                <div class="flex justify-end gap-2 border-t border-edge/60 px-4 py-3">
+                    <button wire:click="closeClipboardDialog" class="rounded border border-edge px-3 py-1 text-[0.78rem] text-body hover:bg-raised">Cancel</button>
+                    <button wire:click="importClipboard" class="rounded bg-sky-600 px-3 py-1 text-[0.78rem] text-white hover:bg-sky-500">Import</button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if ($jsonViewer !== null)
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60" wire:click="closeJsonViewer">
+            <div class="flex max-h-[80vh] w-[min(720px,92vw)] flex-col rounded-lg border border-edge bg-surface shadow-xl" wire:click.stop>
+                <div class="flex items-center justify-between border-b border-edge/60 px-4 py-2">
+                    <span class="text-[0.78rem] font-semibold text-body">{{ $jsonViewer['title'] ?? 'JSON' }}</span>
+                    <button wire:click="closeJsonViewer" class="rounded px-1.5 text-muted hover:bg-raised hover:text-body">&times;</button>
+                </div>
+                <pre class="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all p-4 font-mono text-[0.78rem] text-body select-text">{{ $jsonViewer['content'] ?? '' }}</pre>
+                @if (! empty($jsonViewer['note']))
+                    <div class="border-t border-edge/60 px-4 py-2 text-[0.78rem] text-muted">{{ $jsonViewer['note'] }}</div>
+                @endif
+            </div>
+        </div>
+    @endif
+
     @if ($pendingSafeAction !== null)
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60" wire:click="cancelSafeAction">
             <div class="flex max-h-[80vh] w-[min(640px,92vw)] flex-col rounded-lg border border-edge bg-surface shadow-xl" wire:click.stop>

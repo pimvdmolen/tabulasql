@@ -1,8 +1,19 @@
 import { basicSetup } from 'codemirror';
 import { EditorView, keymap } from '@codemirror/view';
 import { Compartment, Prec } from '@codemirror/state';
-import { sql, MySQL } from '@codemirror/lang-sql';
+import { sql, MySQL, PostgreSQL, SQLite } from '@codemirror/lang-sql';
 import { oneDark } from '@codemirror/theme-one-dark';
+
+function sqlDialect(driver) {
+    switch (driver) {
+        case 'pgsql':
+            return PostgreSQL;
+        case 'sqlite':
+            return SQLite;
+        default:
+            return MySQL;
+    }
+}
 
 const lightTheme = EditorView.theme({
     '&': {
@@ -52,6 +63,17 @@ export function registerSqlEditor(Alpine) {
             const runKeymap = Prec.highest(keymap.of([
                 { key: 'Ctrl-Enter', mac: 'Cmd-Enter', run: () => { this.execute('run', false); return true; } },
                 { key: 'Ctrl-Shift-Enter', mac: 'Cmd-Shift-Enter', run: () => { this.execute('run', true); return true; } },
+                {
+                    key: 'Ctrl-p',
+                    mac: 'Cmd-p',
+                    run: () => {
+                        const livewire = window.Livewire;
+                        if (livewire?.dispatch) {
+                            livewire.dispatch('open-command-palette', { connectionId });
+                        }
+                        return true;
+                    },
+                },
             ]));
 
             let saveTimer = null;
@@ -84,16 +106,20 @@ export function registerSqlEditor(Alpine) {
 
             this.onSchema = (event) => {
                 if (event.detail.connectionId !== connectionId) return;
+                const dialect = sqlDialect(event.detail.driver);
                 this.view.dispatch({
                     effects: this.schemaCompartment.reconfigure(
-                        sql({ dialect: MySQL, upperCaseKeywords: true, schema: event.detail.schema })
+                        sql({ dialect, upperCaseKeywords: true, schema: event.detail.schema })
                     ),
                 });
             };
 
             this.onInsert = (event) => {
                 const { detail } = event;
-                if (detail.connectionId !== connectionId || detail.tabId !== tabId) return;
+                if (detail.connectionId !== connectionId) return;
+                const targetTab = detail.tabId;
+                if (targetTab != null && targetTab !== 0 && targetTab !== tabId) return;
+                if ((targetTab == null || targetTab === 0) && this.$wire.activeTab !== tabId) return;
                 const doc = this.view.state.doc;
                 const insert = (doc.length > 0 && !doc.toString().endsWith('\n') ? '\n' : '') + detail.sql;
                 this.view.dispatch({
@@ -117,7 +143,7 @@ export function registerSqlEditor(Alpine) {
         },
 
         /**
-         * @param {'run'|'explain'} action
+         * @param {'run'|'explain'|'format'|'save'} action
          * @param {?boolean} selectionOnly null = selection if present, else all
          */
         execute(action, selectionOnly) {
@@ -130,7 +156,23 @@ export function registerSqlEditor(Alpine) {
                 ? selection
                 : state.doc.toString();
 
+            if (action === 'save') {
+                this.$wire.call('openSaveDialog', text);
+                return;
+            }
+
             if (text.trim() === '') return;
+
+            if (action === 'format') {
+                this.$wire.call('formatSql', text).then((formatted) => {
+                    if (!formatted) return;
+                    this.view.dispatch({
+                        changes: { from: 0, to: this.view.state.doc.length, insert: formatted },
+                    });
+                    this.$wire.updateSql(tabId, formatted);
+                });
+                return;
+            }
 
             this.$wire.call(action === 'explain' ? 'explain' : 'run', text);
         },

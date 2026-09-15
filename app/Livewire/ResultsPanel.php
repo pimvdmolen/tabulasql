@@ -4,10 +4,13 @@ namespace App\Livewire;
 
 use App\Models\Connection;
 use App\Models\Setting;
+use App\Services\ClipboardImporter;
 use App\Services\DataEditor;
+use App\Services\ExplainVisualizer;
 use App\Services\FilterBuilder;
 use App\Services\QueryRunner;
 use App\Services\RelationResolver;
+use App\Services\ResultChartBuilder;
 use App\Services\SchemaExplorer;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\Computed;
@@ -91,6 +94,19 @@ class ResultsPanel extends Component
 
     /** @var ?array{action: string, title: string, sql: string} */
     public ?array $pendingSafeAction = null;
+
+    public bool $showClipboardDialog = false;
+
+    public string $clipboardText = '';
+
+    public ?string $clipboardError = null;
+
+    public bool $showChart = false;
+
+    public bool $showExplainTree = true;
+
+    /** @var ?array{title: string, content: string, note: ?string, mode: string} */
+    public ?array $jsonViewer = null;
 
     // FK drill-down dialog: a stack of records for nested navigation.
     /** @var array<int, array{database: string, table: string, row: array, relation: ?string, convention: bool}> */
@@ -372,7 +388,7 @@ class ResultsPanel extends Component
         $rules = array_values(array_filter($this->draftFilters, fn ($rule) => ($rule['column'] ?? '') !== ''));
 
         try {
-            app(FilterBuilder::class)->build($rules);
+            app(FilterBuilder::class)->build($rules, $this->connection());
         } catch (Throwable $e) {
             $this->log('error', $e->getMessage());
 
@@ -437,7 +453,7 @@ class ResultsPanel extends Component
         }
 
         try {
-            $built = app(FilterBuilder::class)->build($rules);
+            $built = app(FilterBuilder::class)->build($rules, $this->connection());
         } catch (Throwable $e) {
             return '-- '.$e->getMessage();
         }
@@ -621,6 +637,193 @@ class ResultsPanel extends Component
     {
         $this->showInsertDialog = true;
         $this->insertValues = [];
+    }
+
+    public function openClipboardDialog(): void
+    {
+        if (! $this->isEditable()) {
+            return;
+        }
+
+        $this->clipboardText = '';
+        $this->clipboardError = null;
+        $this->showClipboardDialog = true;
+    }
+
+    public function closeClipboardDialog(): void
+    {
+        $this->showClipboardDialog = false;
+        $this->clipboardText = '';
+        $this->clipboardError = null;
+    }
+
+    public function importClipboard(): void
+    {
+        if ($this->database === null || $this->table === null || ! $this->isEditable()) {
+            return;
+        }
+
+        $columns = array_column(
+            app(SchemaExplorer::class)->columns($this->connection(), $this->database, $this->table),
+            'name'
+        );
+        $parsed = app(ClipboardImporter::class)->parse($this->clipboardText, $columns);
+
+        if (! ($parsed['ok'] ?? false)) {
+            $this->clipboardError = $parsed['error'] ?? 'Could not parse clipboard.';
+
+            return;
+        }
+
+        $inserted = 0;
+        $failed = 0;
+        $editor = app(DataEditor::class);
+
+        foreach ($parsed['rows'] as $row) {
+            $values = array_filter($row, fn ($value) => $value !== null && $value !== '');
+
+            if ($values === []) {
+                continue;
+            }
+
+            try {
+                $editor->insert($this->connection(), $this->database, $this->table, $values);
+                $inserted++;
+            } catch (Throwable $e) {
+                $failed++;
+                $this->log('error', 'Clipboard row: '.$e->getMessage());
+            }
+        }
+
+        $this->log(
+            $failed > 0 ? 'error' : 'success',
+            "Clipboard import ({$parsed['detected']}): inserted {$inserted}".($failed > 0 ? ", {$failed} failed" : '').'.'
+        );
+        $this->closeClipboardDialog();
+        $this->invalidateGrid();
+    }
+
+    public function toggleChart(): void
+    {
+        $this->showChart = ! $this->showChart;
+    }
+
+    /**
+     * @return array{ok: bool, label_column?: string, value_column?: string, points?: array, error?: string}|null
+     */
+    #[Computed]
+    public function chartData(): ?array
+    {
+        $result = $this->gridResult;
+
+        if ($result === null || ! ($result['ok'] ?? false)) {
+            return null;
+        }
+
+        return app(ResultChartBuilder::class)->build($result['columns'] ?? [], $result['rows'] ?? []);
+    }
+
+    /**
+     * @return array{mode: string, nodes?: array, columns?: array, rows?: array}|null
+     */
+    #[Computed]
+    public function explainPlan(): ?array
+    {
+        if ($this->mode !== 'query') {
+            return null;
+        }
+
+        $result = $this->gridResult;
+
+        if ($result === null || ! ($result['ok'] ?? false) || ($result['rows'] ?? []) === []) {
+            return null;
+        }
+
+        // Expand truncated/lazy cells (EXPLAIN JSON often exceeds the inline limit).
+        $rows = $this->expandResultRows($result);
+        $first = (array) ($rows[0] ?? []);
+        $keys = array_map('strtolower', array_keys($first));
+        $looksLikeExplain = in_array('explain', $keys, true)
+            || in_array('id', $keys, true) && in_array('select_type', $keys, true)
+            || in_array('query plan', $keys, true);
+
+        if (! $looksLikeExplain) {
+            return null;
+        }
+
+        return app(ExplainVisualizer::class)->visualize($rows);
+    }
+
+    /**
+     * Turn QueryRunner display cells (preview/full/_fulls) back into scalars
+     * so EXPLAIN / export helpers can parse JSON plans.
+     *
+     * @param  array{rows: array, _fulls?: array}  $result
+     * @return array<int, array<string, mixed>>
+     */
+    private function expandResultRows(array $result): array
+    {
+        $fulls = $result['_fulls'] ?? [];
+        $expanded = [];
+
+        foreach ($result['rows'] as $rowIndex => $row) {
+            $out = [];
+            foreach ((array) $row as $column => $value) {
+                if (is_array($value)) {
+                    $out[$column] = $fulls["$rowIndex:$column"]
+                        ?? $value['full']
+                        ?? $value['preview']
+                        ?? '';
+                } else {
+                    $out[$column] = $value;
+                }
+            }
+            $expanded[] = $out;
+        }
+
+        return $expanded;
+    }
+
+    public function viewCellAsJson(int $row, string $column): void
+    {
+        $result = $this->gridResult;
+        $raw = $result['rows'][$row][$column] ?? null;
+        $fromFulls = $result['_fulls']["$row:$column"] ?? null;
+
+        if ($fromFulls !== null) {
+            $text = (string) $fromFulls;
+        } elseif (is_array($raw)) {
+            $text = $raw['full'] ?? $raw['preview'] ?? '';
+            if (($raw['lazy'] ?? false) && ($raw['full'] ?? null) === null) {
+                $loaded = $this->loadCellValue($row, $column);
+                $text = $loaded['content'] ?? $text;
+            }
+        } else {
+            $text = $raw === null ? '' : (string) $raw;
+        }
+
+        $pretty = $text;
+        $note = null;
+        $decoded = json_decode($text, true);
+
+        if (json_last_error() === JSON_ERROR_NONE) {
+            $pretty = json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+            $note = 'Valid JSON';
+        } else {
+            $note = 'Not valid JSON; showing raw text.';
+        }
+
+        $this->jsonViewer = [
+            'title' => $column,
+            'content' => $pretty,
+            'note' => $note,
+            'mode' => 'json',
+        ];
+    }
+
+    public function closeJsonViewer(): void
+    {
+        $this->jsonViewer = null;
     }
 
     public function closeInsertDialog(): void
@@ -939,17 +1142,18 @@ class ResultsPanel extends Component
         }
 
         $explorer = app(SchemaExplorer::class);
-        $sql = 'SELECT * FROM '.$explorer->quote($this->database).'.'.$explorer->quote($this->table);
+        $connection = $this->connection();
+        $sql = 'SELECT * FROM '.$this->qualifiedTable($explorer, $connection);
         $bindings = [];
 
         if ($this->filters !== []) {
-            $built = app(FilterBuilder::class)->build($this->filters);
+            $built = app(FilterBuilder::class)->build($this->filters, $connection);
             $sql .= ' WHERE '.$built['where'];
             $bindings = $built['bindings'];
         }
 
         if ($this->sortColumn !== null) {
-            $sql .= ' ORDER BY '.$explorer->quote($this->sortColumn).' '.($this->sortDirection === 'desc' ? 'DESC' : 'ASC');
+            $sql .= ' ORDER BY '.$explorer->quote($this->sortColumn, $connection).' '.($this->sortDirection === 'desc' ? 'DESC' : 'ASC');
         }
 
         $rows = array_map(
@@ -1133,15 +1337,15 @@ class ResultsPanel extends Component
         $explorer = app(SchemaExplorer::class);
         $connection = $this->connection();
         $columns = $explorer->columns($connection, $this->database, $this->table);
-        $target = $explorer->quote($this->database).'.'.$explorer->quote($this->table);
+        $target = $this->qualifiedTable($explorer, $connection);
 
-        [$selectList, $heavy] = $this->browseSelectList($explorer, $columns);
+        [$selectList, $heavy] = $this->browseSelectList($explorer, $columns, $connection);
         $sql = "SELECT $selectList FROM $target";
         $bindings = [];
 
         if ($this->filters !== []) {
             try {
-                $built = app(FilterBuilder::class)->build($this->filters);
+                $built = app(FilterBuilder::class)->build($this->filters, $connection);
                 $sql .= ' WHERE '.$built['where'];
                 $bindings = $built['bindings'];
             } catch (Throwable $e) {
@@ -1150,11 +1354,11 @@ class ResultsPanel extends Component
         }
 
         if ($this->sortColumn !== null) {
-            $sql .= ' ORDER BY '.$explorer->quote($this->sortColumn).' '.($this->sortDirection === 'desc' ? 'DESC' : 'ASC');
+            $sql .= ' ORDER BY '.$explorer->quote($this->sortColumn, $connection).' '.($this->sortDirection === 'desc' ? 'DESC' : 'ASC');
         }
 
         if ($this->limitRows) {
-            $sql .= sprintf(' LIMIT %d, %d', $this->firstRow, $this->rowCount);
+            $sql .= $this->browseLimitSql($connection);
         }
 
         $start = hrtime(true);
@@ -1257,14 +1461,17 @@ class ResultsPanel extends Component
      * @param  array<int, array{name: string, type: string}>  $columns
      * @return array{0: string, 1: array<string, 'blob'|'text'>}
      */
-    private function browseSelectList(SchemaExplorer $explorer, array $columns): array
+    private function browseSelectList(SchemaExplorer $explorer, array $columns, Connection $connection): array
     {
         $parts = [];
         $heavy = [];
+        $driver = $connection->driverName();
+        $q = fn (string $identifier) => $explorer->quote($identifier, $connection);
+        $lenAlias = fn (string $name) => $q('__len__'.$name);
 
         foreach ($columns as $column) {
             $name = $column['name'];
-            $quoted = $explorer->quote($name);
+            $quoted = $q($name);
             $type = $column['type'] ?? '';
 
             if (! QueryRunner::isHeavyColumnType($type)) {
@@ -1273,14 +1480,26 @@ class ResultsPanel extends Component
             }
 
             if (QueryRunner::isBlobColumnType($type)) {
-                // Never pull BLOB bytes into the grid — size only.
-                $parts[] = "IF($quoted IS NULL, NULL, '') AS $quoted";
-                $parts[] = "OCTET_LENGTH($quoted) AS ".$explorer->quote('__len__'.$name);
+                $parts[] = match ($driver) {
+                    'mysql' => "IF($quoted IS NULL, NULL, '') AS $quoted",
+                    default => "CASE WHEN $quoted IS NULL THEN NULL ELSE '' END AS $quoted",
+                };
+                $parts[] = match ($driver) {
+                    'sqlite' => "length($quoted) AS ".$lenAlias($name),
+                    default => "octet_length($quoted) AS ".$lenAlias($name),
+                };
                 $heavy[$name] = 'blob';
             } else {
                 $limit = QueryRunner::INLINE_LIMIT;
-                $parts[] = "LEFT($quoted, $limit) AS $quoted";
-                $parts[] = "OCTET_LENGTH($quoted) AS ".$explorer->quote('__len__'.$name);
+                $parts[] = match ($driver) {
+                    'mysql' => "LEFT($quoted, $limit) AS $quoted",
+                    'pgsql' => "substring($quoted::text from 1 for $limit) AS $quoted",
+                    default => "substr($quoted, 1, $limit) AS $quoted",
+                };
+                $parts[] = match ($driver) {
+                    'sqlite' => "length($quoted) AS ".$lenAlias($name),
+                    default => "octet_length($quoted) AS ".$lenAlias($name),
+                };
                 $heavy[$name] = 'text';
             }
         }
@@ -1531,8 +1750,9 @@ class ResultsPanel extends Component
         }
 
         $explorer = app(SchemaExplorer::class);
-        $target = $explorer->quote($this->database).'.'.$explorer->quote($this->table);
-        $qCol = $explorer->quote($column);
+        $connection = $this->connection();
+        $target = $this->qualifiedTable($explorer, $connection);
+        $qCol = $explorer->quote($column, $connection);
         $bindings = [];
 
         try {
@@ -1546,9 +1766,9 @@ class ResultsPanel extends Component
                     }
 
                     if ($pkValue === null) {
-                        $clauses[] = $explorer->quote($pk).' IS NULL';
+                        $clauses[] = $explorer->quote($pk, $connection).' IS NULL';
                     } else {
-                        $clauses[] = $explorer->quote($pk).' = ?';
+                        $clauses[] = $explorer->quote($pk, $connection).' = ?';
                         $bindings[] = $pkValue;
                     }
                 }
@@ -1558,16 +1778,19 @@ class ResultsPanel extends Component
                 $sql = "SELECT $qCol FROM $target";
 
                 if ($this->filters !== []) {
-                    $built = app(FilterBuilder::class)->build($this->filters);
+                    $built = app(FilterBuilder::class)->build($this->filters, $connection);
                     $sql .= ' WHERE '.$built['where'];
                     $bindings = $built['bindings'];
                 }
 
                 if ($this->sortColumn !== null) {
-                    $sql .= ' ORDER BY '.$explorer->quote($this->sortColumn).' '.($this->sortDirection === 'desc' ? 'DESC' : 'ASC');
+                    $sql .= ' ORDER BY '.$explorer->quote($this->sortColumn, $connection).' '.($this->sortDirection === 'desc' ? 'DESC' : 'ASC');
                 }
 
-                $sql .= sprintf(' LIMIT %d, 1', $this->firstRow + $row);
+                $offset = $this->firstRow + $row;
+                $sql .= $connection->isMysql()
+                    ? sprintf(' LIMIT %d, 1', $offset)
+                    : ' LIMIT 1 OFFSET '.$offset;
             }
 
             $dbRow = app(\App\Services\ConnectionManager::class)
@@ -1627,6 +1850,24 @@ class ResultsPanel extends Component
     private function connection(): Connection
     {
         return Connection::findOrFail($this->connectionId);
+    }
+
+    private function qualifiedTable(SchemaExplorer $explorer, Connection $connection): string
+    {
+        if ($connection->driverName() === 'sqlite') {
+            return $explorer->quote($this->table ?? '', $connection);
+        }
+
+        return $explorer->quote($this->database ?? '', $connection).'.'.$explorer->quote($this->table ?? '', $connection);
+    }
+
+    private function browseLimitSql(Connection $connection): string
+    {
+        if ($connection->isMysql()) {
+            return sprintf(' LIMIT %d, %d', $this->firstRow, $this->rowCount);
+        }
+
+        return sprintf(' LIMIT %d OFFSET %d', $this->rowCount, $this->firstRow);
     }
 
     public function render()

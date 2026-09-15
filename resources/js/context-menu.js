@@ -52,6 +52,7 @@ export function registerContextMenu(Alpine) {
             { divider: true },
         ] : []),
         ...(p.isFk ? [{ label: 'Show Related Record…', run: () => $wire.showRelated(p.row, p.col) }] : []),
+        { label: 'View as JSON…', run: () => $wire.viewCellAsJson(p.row, p.col) },
         {
             label: 'Filter',
             children: [
@@ -210,6 +211,9 @@ export function registerContextMenu(Alpine) {
         { label: 'Import SQL File…', run: () => window.Livewire.dispatch('open-import-dialog', {
             connectionId: p.connectionId, database: p.database,
         }) },
+        { label: 'ER Diagram…', run: () => window.Livewire.dispatch('open-er-diagram', {
+            connectionId: p.connectionId, database: p.database,
+        }) },
         { divider: true },
         { label: 'Refresh', run: () => $wire.refreshTables(p.database) },
         { divider: true },
@@ -241,6 +245,11 @@ export function registerContextMenu(Alpine) {
                 : (p.restricted ? 'Create Database… (connection is restricted to one database)' : 'Create Database…'),
             disabled: !p.isOpen || p.restricted,
             run: () => window.Livewire.dispatch('open-create-database', { connectionId: p.connectionId }),
+        },
+        {
+            label: 'Manage Users…',
+            disabled: !p.isOpen || !p.isMysql,
+            run: () => window.Livewire.dispatch('open-user-manager', { connectionId: p.connectionId }),
         },
     ];
 }

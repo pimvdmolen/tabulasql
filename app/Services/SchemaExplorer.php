@@ -19,7 +19,10 @@ class SchemaExplorer
 {
     private const TTL = 300;
 
-    public function __construct(private ConnectionManager $manager) {}
+    public function __construct(
+        private ConnectionManager $manager,
+        private AltSchemaExplorer $alt,
+    ) {}
 
     /**
      * Databases visible through this connection. Restricted connections
@@ -30,6 +33,10 @@ class SchemaExplorer
      */
     public function databases(Connection $connection): array
     {
+        if (! $connection->isMysql()) {
+            return $this->alt->databases($connection);
+        }
+
         if ($connection->database !== null) {
             return [$connection->database];
         }
@@ -52,6 +59,10 @@ class SchemaExplorer
      */
     public function tables(Connection $connection, string $database): array
     {
+        if (! $connection->isMysql()) {
+            return $this->alt->tables($connection, $database);
+        }
+
         $rows = $this->manager->db($connection)->select(
             'SELECT TABLE_NAME AS name, TABLE_TYPE AS type, ENGINE AS engine,
                     TABLE_ROWS AS `rows`, (DATA_LENGTH + INDEX_LENGTH) AS size
@@ -79,6 +90,10 @@ class SchemaExplorer
      */
     public function tableNames(Connection $connection, string $database): array
     {
+        if (! $connection->isMysql()) {
+            return $this->alt->tableNames($connection, $database);
+        }
+
         return Cache::remember($this->key($connection, $database, null, 'tableNames'), self::TTL, function () use ($connection, $database) {
             return array_column(
                 $this->manager->db($connection)->select(
@@ -100,6 +115,10 @@ class SchemaExplorer
      */
     public function procedures(Connection $connection, string $database): array
     {
+        if (! $connection->isMysql()) {
+            return [];
+        }
+
         return array_column($this->manager->db($connection)->select(
             "SELECT ROUTINE_NAME AS name FROM information_schema.ROUTINES
              WHERE ROUTINE_SCHEMA = ? AND ROUTINE_TYPE = 'PROCEDURE' ORDER BY ROUTINE_NAME",
@@ -112,6 +131,10 @@ class SchemaExplorer
      */
     public function functions(Connection $connection, string $database): array
     {
+        if (! $connection->isMysql()) {
+            return [];
+        }
+
         return array_column($this->manager->db($connection)->select(
             "SELECT ROUTINE_NAME AS name FROM information_schema.ROUTINES
              WHERE ROUTINE_SCHEMA = ? AND ROUTINE_TYPE = 'FUNCTION' ORDER BY ROUTINE_NAME",
@@ -124,6 +147,10 @@ class SchemaExplorer
      */
     public function triggers(Connection $connection, string $database): array
     {
+        if (! $connection->isMysql()) {
+            return [];
+        }
+
         $rows = $this->manager->db($connection)->select(
             'SELECT TRIGGER_NAME AS name, EVENT_OBJECT_TABLE AS tbl FROM information_schema.TRIGGERS
              WHERE TRIGGER_SCHEMA = ? ORDER BY TRIGGER_NAME',
@@ -138,6 +165,10 @@ class SchemaExplorer
      */
     public function events(Connection $connection, string $database): array
     {
+        if (! $connection->isMysql()) {
+            return [];
+        }
+
         return array_column($this->manager->db($connection)->select(
             'SELECT EVENT_NAME AS name FROM information_schema.EVENTS WHERE EVENT_SCHEMA = ? ORDER BY EVENT_NAME',
             [$database]
@@ -146,7 +177,7 @@ class SchemaExplorer
 
     public function procedureDdl(Connection $connection, string $database, string $name): string
     {
-        $target = sprintf('%s.%s', $this->quote($database), $this->quote($name));
+        $target = sprintf('%s.%s', $this->quote($database, $connection), $this->quote($name, $connection));
         $row = (array) $this->manager->db($connection)->selectOne("SHOW CREATE PROCEDURE $target");
 
         return $row['Create Procedure'] ?? '';
@@ -154,7 +185,7 @@ class SchemaExplorer
 
     public function functionDdl(Connection $connection, string $database, string $name): string
     {
-        $target = sprintf('%s.%s', $this->quote($database), $this->quote($name));
+        $target = sprintf('%s.%s', $this->quote($database, $connection), $this->quote($name, $connection));
         $row = (array) $this->manager->db($connection)->selectOne("SHOW CREATE FUNCTION $target");
 
         return $row['Create Function'] ?? '';
@@ -165,7 +196,7 @@ class SchemaExplorer
      */
     public function triggerDdl(Connection $connection, string $database, string $name): string
     {
-        $target = sprintf('%s.%s', $this->quote($database), $this->quote($name));
+        $target = sprintf('%s.%s', $this->quote($database, $connection), $this->quote($name, $connection));
         $row = (array) $this->manager->db($connection)->selectOne("SHOW CREATE TRIGGER $target");
 
         return $row['SQL Original Statement'] ?? '';
@@ -173,7 +204,7 @@ class SchemaExplorer
 
     public function eventDdl(Connection $connection, string $database, string $name): string
     {
-        $target = sprintf('%s.%s', $this->quote($database), $this->quote($name));
+        $target = sprintf('%s.%s', $this->quote($database, $connection), $this->quote($name, $connection));
         $row = (array) $this->manager->db($connection)->selectOne("SHOW CREATE EVENT $target");
 
         return $row['Create Event'] ?? '';
@@ -184,6 +215,12 @@ class SchemaExplorer
      */
     public function columns(Connection $connection, string $database, string $table): array
     {
+        if (! $connection->isMysql()) {
+            return Cache::remember($this->key($connection, $database, $table, 'columns'), self::TTL, function () use ($connection, $database, $table) {
+                return $this->alt->columns($connection, $database, $table);
+            });
+        }
+
         return Cache::remember($this->key($connection, $database, $table, 'columns'), self::TTL, function () use ($connection, $database, $table) {
             $rows = $this->manager->db($connection)->select(
                 'SELECT COLUMN_NAME AS name, COLUMN_TYPE AS type, IS_NULLABLE AS nullable,
@@ -212,9 +249,15 @@ class SchemaExplorer
      */
     public function indexes(Connection $connection, string $database, string $table): array
     {
+        if (! $connection->isMysql()) {
+            return Cache::remember($this->key($connection, $database, $table, 'indexes'), self::TTL, function () use ($connection, $database, $table) {
+                return $this->alt->indexes($connection, $database, $table);
+            });
+        }
+
         return Cache::remember($this->key($connection, $database, $table, 'indexes'), self::TTL, function () use ($connection, $database, $table) {
             $rows = $this->manager->db($connection)->select(
-                sprintf('SHOW INDEX FROM %s.%s', $this->quote($database), $this->quote($table))
+                sprintf('SHOW INDEX FROM %s.%s', $this->quote($database, $connection), $this->quote($table, $connection))
             );
 
             $indexes = [];
@@ -240,8 +283,14 @@ class SchemaExplorer
 
     public function ddl(Connection $connection, string $database, string $table): string
     {
+        if (! $connection->isMysql()) {
+            return Cache::remember($this->key($connection, $database, $table, 'ddl'), self::TTL, function () use ($connection, $database, $table) {
+                return $this->alt->ddl($connection, $database, $table);
+            });
+        }
+
         return Cache::remember($this->key($connection, $database, $table, 'ddl'), self::TTL, function () use ($connection, $database, $table) {
-            $target = sprintf('%s.%s', $this->quote($database), $this->quote($table));
+            $target = sprintf('%s.%s', $this->quote($database, $connection), $this->quote($table, $connection));
             $db = $this->manager->db($connection);
 
             try {
@@ -261,6 +310,12 @@ class SchemaExplorer
      */
     public function allColumns(Connection $connection, string $database): array
     {
+        if (! $connection->isMysql()) {
+            return Cache::remember($this->key($connection, $database, null, 'allColumns'), self::TTL, function () use ($connection, $database) {
+                return $this->alt->allColumns($connection, $database);
+            });
+        }
+
         return Cache::remember($this->key($connection, $database, null, 'allColumns'), self::TTL, function () use ($connection, $database) {
             $rows = $this->manager->db($connection)->select(
                 'SELECT TABLE_NAME AS tbl, COLUMN_NAME AS col
@@ -286,6 +341,12 @@ class SchemaExplorer
      */
     public function primaryKey(Connection $connection, string $database, string $table): array
     {
+        if (! $connection->isMysql()) {
+            return Cache::remember($this->key($connection, $database, $table, 'primaryKey'), self::TTL, function () use ($connection, $database, $table) {
+                return $this->alt->primaryKey($connection, $database, $table);
+            });
+        }
+
         return Cache::remember($this->key($connection, $database, $table, 'primaryKey'), self::TTL, function () use ($connection, $database, $table) {
             $rows = $this->manager->db($connection)->select(
                 "SELECT COLUMN_NAME AS name
@@ -306,6 +367,12 @@ class SchemaExplorer
      */
     public function foreignKeyConstraints(Connection $connection, string $database, string $table): array
     {
+        if (! $connection->isMysql()) {
+            return Cache::remember($this->key($connection, $database, $table, 'foreignKeyConstraints'), self::TTL, function () use ($connection, $database, $table) {
+                return $this->alt->foreignKeyConstraints($connection, $database, $table);
+            });
+        }
+
         return Cache::remember($this->key($connection, $database, $table, 'foreignKeyConstraints'), self::TTL, function () use ($connection, $database, $table) {
             $rows = $this->manager->db($connection)->select(
                 'SELECT k.CONSTRAINT_NAME AS name, k.COLUMN_NAME AS col,
@@ -352,10 +419,15 @@ class SchemaExplorer
     }
 
     /**
-     * Quote a MySQL identifier with backticks.
+     * Quote an identifier. Pass $connection for driver-aware quoting
+     * (backticks for MySQL, double quotes for PostgreSQL/SQLite).
      */
-    public function quote(string $identifier): string
+    public function quote(string $identifier, ?Connection $connection = null): string
     {
+        if ($connection !== null && ! $connection->isMysql()) {
+            return $this->alt->quote($connection, $identifier);
+        }
+
         return '`'.str_replace('`', '``', $identifier).'`';
     }
 

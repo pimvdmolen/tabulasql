@@ -41,6 +41,15 @@ class Workspace extends Component
         $this->activeTabId = collect($this->openTabs)->contains('id', $saved['active'] ?? null)
             ? $saved['active']
             : ($this->openTabs[0]['id'] ?? null);
+
+        if ($this->activeTabId !== null) {
+            $connection = Connection::find($this->activeTabId);
+            $this->dispatch(
+                'workspace-context',
+                connectionId: $this->activeTabId,
+                database: $connection?->default_database,
+            );
+        }
     }
 
     private function persistTabs(): void
@@ -73,6 +82,11 @@ class Workspace extends Component
 
         $this->activeTabId = $id;
         $this->persistTabs();
+        $this->dispatch(
+            'workspace-context',
+            connectionId: $id,
+            database: $connection->default_database,
+        );
     }
 
     public function activateTab(int $id): void
@@ -80,6 +94,12 @@ class Workspace extends Component
         if (collect($this->openTabs)->contains('id', $id)) {
             $this->activeTabId = $id;
             $this->persistTabs();
+            $connection = Connection::find($id);
+            $this->dispatch(
+                'workspace-context',
+                connectionId: $id,
+                database: $connection?->default_database,
+            );
         }
     }
 

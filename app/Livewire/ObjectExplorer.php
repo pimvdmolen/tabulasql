@@ -81,10 +81,17 @@ class ObjectExplorer extends Component
         if (in_array($database, $this->expandedDatabases, true)) {
             $this->expandedDatabases = array_values(array_diff($this->expandedDatabases, [$database]));
 
+            if ($this->activeDatabase === $database) {
+                $this->activeDatabase = null;
+                $this->dispatch('database-activated', connectionId: $this->connectionId, database: '');
+                $this->dispatch('workspace-context', connectionId: $this->connectionId, database: '');
+            }
+
             return;
         }
 
-        $this->expandedDatabases[] = $database;
+        // Accordion: only one database open at a time.
+        $this->expandedDatabases = [$database];
         $this->setActiveDatabase($database);
 
         if (! isset($this->loadedTables[$database])) {
@@ -97,6 +104,7 @@ class ObjectExplorer extends Component
         if ($this->activeDatabase !== $database) {
             $this->activeDatabase = $database;
             $this->dispatch('database-activated', connectionId: $this->connectionId, database: $database);
+            $this->dispatch('workspace-context', connectionId: $this->connectionId, database: $database);
         }
     }
 

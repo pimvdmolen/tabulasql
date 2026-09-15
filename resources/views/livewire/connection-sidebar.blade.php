@@ -39,7 +39,7 @@
                 x-on:dragover="dragOver($event)"
                 x-on:drop.stop="drop($event, {{ $index }})"
                 x-on:dragend="dragEnd($event)"
-                x-on:contextmenu.prevent="$store.ctx.open($event, window.treeConnectionMenu($wire, { connectionId: {{ $connection->id }}, isOpen: {{ $isOpen ? 'true' : 'false' }}, restricted: {{ filled($connection->database) ? 'true' : 'false' }} }))"
+                x-on:contextmenu.prevent="$store.ctx.open($event, window.treeConnectionMenu($wire, { connectionId: {{ $connection->id }}, isOpen: {{ $isOpen ? 'true' : 'false' }}, restricted: {{ filled($connection->database) ? 'true' : 'false' }}, isMysql: {{ $connection->isMysql() ? 'true' : 'false' }} }))"
                 class="group flex cursor-grab items-center gap-2 rounded px-2 py-1.5 text-sm active:cursor-grabbing
                     {{ $isActive
                         ? 'bg-sky-500/20 font-medium text-strong'
@@ -50,6 +50,9 @@
                 <span wire:loading.remove wire:target="openConnection({{ $connection->id }})" class="size-2.5 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15" style="background: {{ $dotColor }}"></span>
                 <span wire:loading wire:target="openConnection({{ $connection->id }})" class="size-2.5 shrink-0 animate-spin rounded-full border-2 border-sky-500 border-t-transparent"></span>
                 <span class="min-w-0 flex-1 truncate">{{ $connection->name }}</span>
+                @if (! $connection->isMysql())
+                    <span class="shrink-0 rounded border border-edge/60 px-1 text-[0.65rem] uppercase text-muted">{{ $connection->driverName() }}</span>
+                @endif
                 <span wire:loading wire:target="openConnection({{ $connection->id }})" class="shrink-0 text-[0.7rem] text-sky-600 dark:text-sky-400">Connecting…</span>
                 @if ($isOpen)
                     <span wire:loading.remove wire:target="openConnection({{ $connection->id }})" class="shrink-0 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-1.5 text-[0.7rem] leading-4 text-emerald-600 dark:text-emerald-400">open</span>
